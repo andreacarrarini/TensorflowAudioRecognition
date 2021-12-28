@@ -50,3 +50,12 @@ xcuserdata
 
 # Dataset
 /UrbanSound8K
+
+# Default ignored files
+/shelf/
+/workspace.xml
+# Datasource local storage ignored files
+/../../../../../../../:\Users\drugh\Documents\PycharmProjects\MSA_Project\.idea/dataSources/
+/dataSources.local.xml
+# Editor-based HTTP Client requests
+/httpRequests/
