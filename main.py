@@ -29,20 +29,25 @@ def close_csv_file(open_file):
 
 # The problem with this function is that in the example
 # the audio files were mono channel and so it's different
-def decode_audio(audio_binary):
-    # Decode WAV-encoded audio files to `float32` tensors, normalized
-    # to the [-1.0, 1.0] range. Return `float32` audio and a sample rate.
-    audio, _ = tf.audio.decode_wav(contents=audio_binary)
-    return audio
+# def decode_audio(audio_binary):
+#     # Decode WAV-encoded audio files to `float32` tensors, normalized
+#     # to the [-1.0, 1.0] range. Return `float32` audio and a sample rate.
+#     audio, _ = tf.audio.decode_wav(contents=audio_binary)
+#     return audio
 
 
 # Finds the last / and slices the file path
-def get_file_name_from_path(file_path):
-    parts = tf.strings.split(input=file_path, sep='/')
+def get_file_name_from_path_TENSOR(file_path):
+    parts = tf.strings.split(input=file_path, sep='\\')
 
     # file_name = file_path[file_path.rfind('/')+1:]
     return parts[-1]
 
+def get_file_name_from_path(file_path):
+    parts = file_path.split("\\")
+
+    # file_name = file_path[file_path.rfind('/')+1:]
+    return parts[-1]
 
 def csv_file_to_list(csv_file):
     rows = []
@@ -63,23 +68,25 @@ def compare_string_tensors(a, b):
     i = 0
     while i < min_size:
         print("a[i] is: " + str(a[i]))
-        print("b[i] is: " + str(b[i]))
+        print("b[i] is: " + str(b[0][i]))
         # TODO CONTINUE HERE
-        if a[i] < b[i]:
+        if a[i] < int(b[0][i]):
             return -1
-        elif a[i] > b[i]:
+        elif a[i] > int(b[0][i]):
             return 1
-        elif a[i] == b[i]:
+        elif a[i] == int(b[0][i]):
             i += 1
             if i == min_size:
                 # if they're the same until the last char of the shortest one
-                if len(a) == len(b):
+                pippo = len(a)
+                pluto = len(b)
+                if len(a) == len(b[0]):
                     return 0
 
-                elif len(a) < len(b):
+                elif len(a) < len(b[0]):
                     return -1
 
-                elif len(a) > len(b):
+                elif len(a) > len(b[0]):
                     return 1
 
 
@@ -91,9 +98,12 @@ def get_label(csv_list, file_name):
 
     step = 0
 
-    b = tf.convert_to_tensor(file_name, dtype=tf.string)
-    file_path_parts = tf.strings.split(b, sep='\\')
-    b = tf.slice(file_path_parts, begin=[9], size=[1])
+    # b = tf.convert_to_tensor(file_name, dtype=tf.string)
+    # file_path_parts = tf.strings.split(b, sep='\\')
+    # b = tf.slice(file_path_parts, begin=[9], size=[1])
+    # b = tf.io.decode_raw(b, tf.uint8)
+
+    b = file_name
 
     while low <= high:
         print("Step: " + str(step))
@@ -104,38 +114,39 @@ def get_label(csv_list, file_name):
         mid = (high + low) // 2
         print("Mid is: " + str(mid))
 
-        # TODO: Error is here, b (file_name) contains the whole path to the file and not only the file name
-        a = tf.convert_to_tensor(csv_list[mid][0], dtype=tf.string)
-
+        # a = tf.convert_to_tensor(csv_list[mid][0], dtype=tf.string)
+        a = csv_list[mid][0]
 
         print("a is: " + str(a))
         print("b is: " + str(b))
 
-        a = tf.io.decode_raw(a, tf.uint8)
-        b = tf.io.decode_raw(b, tf.uint8)
-
-        a = a.numpy()
-        b = b.numpy()
+        # a = tf.io.decode_raw(a, tf.uint8)
+        #
+        # a = a.numpy()
+        # b = b.numpy()
 
         # TODO: Continue here and compare each character (represented by an int)
         # to simulate a comparison between 2 strings which cannot be done in tf between tensors od different shapes
 
         # If x is greater, ignore left half
         # if a < b:
-        if compare_string_tensors(a, b) == -1:
+        # if compare_string_tensors(a, b) == -1:
+        if a < b:
             low = mid + 1
             print("smaller")
             continue
 
         # If x is smaller, ignore right half
         # elif a > b:
-        elif compare_string_tensors(a, b) == 1:
+        # elif compare_string_tensors(a, b) == 1:
+        elif a > b:
             high = mid - 1
             print("greater")
             continue
 
         # means x is present at mid
-        elif compare_string_tensors(a, b) == 0:
+        # elif compare_string_tensors(a, b) == 0:
+        elif a == b:
             print("Label found: " + csv_list[mid][7])
             return csv_list[mid][7]
 
@@ -173,6 +184,9 @@ def prepare_waveform_dataset(files_dataset, csv_list):
 
     for file_path in files_dataset:
         waveform_label_couple = []
+
+        # ffff = tf.io.decode_raw(file_path, tf.uint8)
+        # dddd = tf.strings.as_string(ffff)
 
         file_name = get_file_name_from_path(file_path)
         print("File name is: " + file_name)
@@ -225,10 +239,10 @@ if __name__ == '__main__':
 
     # train_set = tf.io.gfile.glob(str(data_dir) + '/audio/fold1/*.wav')
     train_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio','fold1','*.wav'))
-    train_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold2', '*.wav'))
-    train_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold3', '*.wav'))
-    train_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold4', '*.wav'))
-    train_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold6', '*.wav'))
+    # train_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold2', '*.wav'))
+    # train_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold3', '*.wav'))
+    # train_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold4', '*.wav'))
+    # train_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold6', '*.wav'))
 
     # train_set += tf.io.gfile.glob(str(data_dir) + '/audio/fold2/*.wav')
     # train_set += tf.io.gfile.glob(str(data_dir) + '/audio/fold3/*.wav')
@@ -240,10 +254,10 @@ if __name__ == '__main__':
 
     # test_set = tf.io.gfile.glob(str(data_dir) + '/audio/fold5/*.wav')
     test_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold5', '*.wav'))
-    test_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold7', '*.wav'))
-    test_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold8', '*.wav'))
-    test_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold9', '*.wav'))
-    test_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold10', '*.wav'))
+    # test_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold7', '*.wav'))
+    # test_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold8', '*.wav'))
+    # test_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold9', '*.wav'))
+    # test_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold10', '*.wav'))
 
     # test_set += tf.io.gfile.glob(str(data_dir) + '/audio/fold7/*.wav')
     # test_set += tf.io.gfile.glob(str(data_dir) + '/audio/fold8/*.wav')
@@ -258,8 +272,8 @@ if __name__ == '__main__':
 
     AUTOTUNE = tf.data.AUTOTUNE
 
-    # TODO: find a way to make this not add an additional "/" after every directory or remove them from evey element
-    files_ds = tf.data.Dataset.from_tensor_slices(train_set)
+    # Trying not to convert into a dataset
+    # files_ds = tf.data.Dataset.from_tensor_slices(train_set)
 
     # for elem in files_ds:
     #     print(elem)
@@ -288,32 +302,33 @@ if __name__ == '__main__':
     close_csv_file(OPEN_FILE)
 
     # Preparing the data structure: list[(waveform, label), ...]
-    waveform_label_structure = prepare_waveform_dataset(files_ds, csv_list)
+    # waveform_label_structure = prepare_waveform_dataset(files_ds, csv_list)
+    waveform_label_structure = prepare_waveform_dataset(train_set, csv_list)
 
     # waveform_ds = files_ds.map(map_func=get_waveform_and_label_2 , num_parallel_calls=AUTOTUNE)
 
     # Transforming the data structure into a dataset
     waveform_label_dataset = tf.data.Dataset.from_tensor_slices(waveform_label_structure)
 
-    rows = 3
-    cols = 3
-    n = rows * cols
-    # fig, axes = plt.subplots(rows, cols, figsize=(10, 12))
-
-    for i, (audio, label) in enumerate(waveform_label_dataset.take(n)):
-        r = i // cols
-        c = i % cols
-        # ax = axes[r][c]
-        # ax.plot(audio.numpy())
-        # ax.set_yticks(np.arange(-1.2, 1.2, 0.2))
-        # label = label.numpy().decode('utf-8')
-        # ax.set_title(label)
-
-        librosa.display.waveplot(audio)
+    # rows = 3
+    # cols = 3
+    # n = rows * cols
+    # # fig, axes = plt.subplots(rows, cols, figsize=(10, 12))
+    #
+    # for i, (audio, label) in enumerate(waveform_label_dataset.take(n)):
+    #     r = i // cols
+    #     c = i % cols
+    #     # ax = axes[r][c]
+    #     # ax.plot(audio.numpy())
+    #     # ax.set_yticks(np.arange(-1.2, 1.2, 0.2))
+    #     # label = label.numpy().decode('utf-8')
+    #     # ax.set_title(label)
+    #
+    #     librosa.display.waveplot(audio)
 
     # plt.show()
 
-    for (audio, label) in enumerate(waveform_label_dataset.take(n)):
-        print(audio, label)
+    # for (audio, label) in enumerate(waveform_label_dataset.take(n)):
+    #     print(audio, label)
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
