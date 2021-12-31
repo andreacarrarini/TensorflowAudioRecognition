@@ -62,6 +62,9 @@ def compare_string_tensors(a, b):
 
     i = 0
     while i < min_size:
+        print("a[i] is: " + str(a[i]))
+        print("b[i] is: " + str(b[i]))
+        # TODO CONTINUE HERE
         if a[i] < b[i]:
             return -1
         elif a[i] > b[i]:
@@ -86,12 +89,27 @@ def get_label(csv_list, file_name):
     high = len(csv_list) - 1
     mid = 0
 
+    step = 0
+
+    b = tf.convert_to_tensor(file_name, dtype=tf.string)
+    file_path_parts = tf.strings.split(b, sep='\\')
+    b = tf.slice(file_path_parts, begin=[9], size=[1])
+
     while low <= high:
+        print("Step: " + str(step))
+        step+=1
+        print("Low is: " + str(low))
+        print("High is: " + str(high))
 
         mid = (high + low) // 2
+        print("Mid is: " + str(mid))
 
+        # TODO: Error is here, b (file_name) contains the whole path to the file and not only the file name
         a = tf.convert_to_tensor(csv_list[mid][0], dtype=tf.string)
-        b = tf.convert_to_tensor(file_name, dtype=tf.string)
+
+
+        print("a is: " + str(a))
+        print("b is: " + str(b))
 
         a = tf.io.decode_raw(a, tf.uint8)
         b = tf.io.decode_raw(b, tf.uint8)
@@ -106,20 +124,24 @@ def get_label(csv_list, file_name):
         # if a < b:
         if compare_string_tensors(a, b) == -1:
             low = mid + 1
+            print("smaller")
+            continue
 
         # If x is smaller, ignore right half
         # elif a > b:
         elif compare_string_tensors(a, b) == 1:
             high = mid - 1
+            print("greater")
+            continue
 
         # means x is present at mid
         elif compare_string_tensors(a, b) == 0:
+            print("Label found: " + csv_list[mid][7])
             return csv_list[mid][7]
 
-    # If we reach here, then the element was not present
-    print("File: " + file_name + " is not present.")
-    return -1
-
+        else:
+            print("File: " + file_name + " is not present.")
+            return -1
 
 # Function that puts the 2 above together
 # def get_waveform_and_label(file_path):
@@ -153,10 +175,10 @@ def prepare_waveform_dataset(files_dataset, csv_list):
         waveform_label_couple = []
 
         file_name = get_file_name_from_path(file_path)
-
         print("File name is: " + file_name)
 
         label = get_label(csv_list, file_name)
+        print("Label is: " + label)
 
         # audio_binary = tf.io.read_file(file_path)
         # waveform = decode_audio(audio_binary)
@@ -185,6 +207,9 @@ if __name__ == '__main__':
 
     DATASET_PATH = '/Users/drugh/Documents/PycharmProjects/MSA_Project/UrbanSound8K'
 
+    DATASET_PATH = os.path.join('C:',os.sep,'Users','drugh','Documents','PycharmProjects','MSA_Project','UrbanSound8K')
+    print("DATASET_PATH is : " + DATASET_PATH)
+
     data_dir = pathlib.Path(DATASET_PATH)
     if data_dir.exists():
         print(data_dir)
@@ -198,7 +223,13 @@ if __name__ == '__main__':
     # commands = commands[commands != 'README.md']
     # print('Commands:', commands)
 
-    train_set = tf.io.gfile.glob(str(data_dir) + '/audio/fold1/*.wav')
+    # train_set = tf.io.gfile.glob(str(data_dir) + '/audio/fold1/*.wav')
+    train_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio','fold1','*.wav'))
+    train_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold2', '*.wav'))
+    train_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold3', '*.wav'))
+    train_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold4', '*.wav'))
+    train_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold6', '*.wav'))
+
     # train_set += tf.io.gfile.glob(str(data_dir) + '/audio/fold2/*.wav')
     # train_set += tf.io.gfile.glob(str(data_dir) + '/audio/fold3/*.wav')
     # train_set += tf.io.gfile.glob(str(data_dir) + '/audio/fold4/*.wav')
@@ -207,13 +238,21 @@ if __name__ == '__main__':
     # for elem in train_set:
     #     print(elem)
 
-    test_set = tf.io.gfile.glob(str(data_dir) + '/audio/fold5/*.wav')
-    test_set += tf.io.gfile.glob(str(data_dir) + '/audio/fold7/*.wav')
-    test_set += tf.io.gfile.glob(str(data_dir) + '/audio/fold8/*.wav')
-    test_set += tf.io.gfile.glob(str(data_dir) + '/audio/fold9/*.wav')
-    test_set += tf.io.gfile.glob(str(data_dir) + '/audio/fold10/*.wav')
+    # test_set = tf.io.gfile.glob(str(data_dir) + '/audio/fold5/*.wav')
+    test_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold5', '*.wav'))
+    test_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold7', '*.wav'))
+    test_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold8', '*.wav'))
+    test_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold9', '*.wav'))
+    test_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold10', '*.wav'))
 
-    test_file = tf.io.read_file(DATASET_PATH + '/audio/fold1/7061-6-0-0.wav')
+    # test_set += tf.io.gfile.glob(str(data_dir) + '/audio/fold7/*.wav')
+    # test_set += tf.io.gfile.glob(str(data_dir) + '/audio/fold8/*.wav')
+    # test_set += tf.io.gfile.glob(str(data_dir) + '/audio/fold9/*.wav')
+    # test_set += tf.io.gfile.glob(str(data_dir) + '/audio/fold10/*.wav')
+
+    # test_file = tf.io.read_file(DATASET_PATH + '/audio/fold1/7061-6-0-0.wav')
+    test_file = tf.io.read_file(os.path.join(DATASET_PATH,'audio','fold1','7061-6-0-0.wav'))
+
     test_audio, _ = tf.audio.decode_wav(contents=test_file)
     test_audio.shape
 
@@ -236,6 +275,9 @@ if __name__ == '__main__':
     # print(parts[-1])
 
     CSV_PATH = '/Users/drugh/Documents/PycharmProjects/MSA_Project/UrbanSound8K/metadata/UrbanSound8K.csv'
+    CSV_PATH = os.path.join('C:',os.sep,'Users','drugh','Documents','PycharmProjects',
+                            'MSA_Project','UrbanSound8K','metadata','UrbanSound8K.csv')
+
     global OPEN_FILE
     OPEN_FILE = open_csv_file(CSV_PATH)
 
@@ -270,5 +312,8 @@ if __name__ == '__main__':
         librosa.display.waveplot(audio)
 
     # plt.show()
+
+    for (audio, label) in enumerate(waveform_label_dataset.take(n)):
+        print(audio, label)
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
