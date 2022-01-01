@@ -12,6 +12,7 @@ import csv
 import numpy as np
 import librosa
 import librosa.display
+import matplotlib.pyplot as plt
 
 import sys
 
@@ -67,9 +68,6 @@ def compare_string_tensors(a, b):
 
     i = 0
     while i < min_size:
-        print("a[i] is: " + str(a[i]))
-        print("b[i] is: " + str(b[0][i]))
-        # TODO CONTINUE HERE
         if a[i] < int(b[0][i]):
             return -1
         elif a[i] > int(b[0][i]):
@@ -106,26 +104,16 @@ def get_label(csv_list, file_name):
     b = file_name
 
     while low <= high:
-        print("Step: " + str(step))
-        step+=1
-        print("Low is: " + str(low))
-        print("High is: " + str(high))
-
         mid = (high + low) // 2
-        print("Mid is: " + str(mid))
 
         # a = tf.convert_to_tensor(csv_list[mid][0], dtype=tf.string)
         a = csv_list[mid][0]
-
-        print("a is: " + str(a))
-        print("b is: " + str(b))
 
         # a = tf.io.decode_raw(a, tf.uint8)
         #
         # a = a.numpy()
         # b = b.numpy()
 
-        # TODO: Continue here and compare each character (represented by an int)
         # to simulate a comparison between 2 strings which cannot be done in tf between tensors od different shapes
 
         # If x is greater, ignore left half
@@ -133,7 +121,6 @@ def get_label(csv_list, file_name):
         # if compare_string_tensors(a, b) == -1:
         if a < b:
             low = mid + 1
-            print("smaller")
             continue
 
         # If x is smaller, ignore right half
@@ -141,13 +128,11 @@ def get_label(csv_list, file_name):
         # elif compare_string_tensors(a, b) == 1:
         elif a > b:
             high = mid - 1
-            print("greater")
             continue
 
         # means x is present at mid
         # elif compare_string_tensors(a, b) == 0:
         elif a == b:
-            print("Label found: " + csv_list[mid][7])
             return csv_list[mid][7]
 
         else:
@@ -183,25 +168,23 @@ def prepare_waveform_dataset(files_dataset, csv_list):
     waveform_label_dataset = []
 
     for file_path in files_dataset:
-        waveform_label_couple = []
+        # waveform_label_couple = []
 
         # ffff = tf.io.decode_raw(file_path, tf.uint8)
         # dddd = tf.strings.as_string(ffff)
 
         file_name = get_file_name_from_path(file_path)
-        print("File name is: " + file_name)
 
         label = get_label(csv_list, file_name)
-        print("Label is: " + label)
 
         # audio_binary = tf.io.read_file(file_path)
         # waveform = decode_audio(audio_binary)
 
         sound_file, sampling_rate = librosa.load(str(file_path), sr=None)
 
-        waveform_label_couple.append((sound_file, label))
+        # waveform_label_couple.append((sound_file, label))
 
-        waveform_label_dataset.append(waveform_label_couple)
+        waveform_label_dataset.append((sound_file, label))
 
     return waveform_label_dataset
 
@@ -307,26 +290,48 @@ if __name__ == '__main__':
 
     # waveform_ds = files_ds.map(map_func=get_waveform_and_label_2 , num_parallel_calls=AUTOTUNE)
 
+    sound_arrays = []
+    labels = []
+    for elem in waveform_label_structure:
+        sound_arrays.append(elem[0])
+        label = []
+        for char in elem[1]:
+            label.append(ord(char))
+        labels.append(np.array(label))
+        # print(sound_arrays)
+        # print(labels)
+
     # Transforming the data structure into a dataset
-    waveform_label_dataset = tf.data.Dataset.from_tensor_slices(waveform_label_structure)
+    # waveform_label_dataset = tf.data.Dataset.from_tensor_slices(sound_arrays, labels)
+    # waveform_label_dataset = tf.data.Dataset.from_tensor_slices(sound_arrays)
 
-    # rows = 3
-    # cols = 3
-    # n = rows * cols
-    # # fig, axes = plt.subplots(rows, cols, figsize=(10, 12))
-    #
-    # for i, (audio, label) in enumerate(waveform_label_dataset.take(n)):
-    #     r = i // cols
-    #     c = i % cols
-    #     # ax = axes[r][c]
-    #     # ax.plot(audio.numpy())
-    #     # ax.set_yticks(np.arange(-1.2, 1.2, 0.2))
-    #     # label = label.numpy().decode('utf-8')
-    #     # ax.set_title(label)
-    #
-    #     librosa.display.waveplot(audio)
+    # TODO: Understand if both sound_arrays and labels elems must be converted to tensors
+    #       and also how to pad these tensors to the same size (this seems to be the issue here)
+    waveform_label_dataset = tf.data.Dataset.from_generator(
+        lambda: iter(zip(sound_arrays, labels)),
+        output_types=(tf.float32, tf.int64)
+    ).padded_batch(
+        batch_size=32,
+        padded_shapes=([None], ())
+    )
 
-    # plt.show()
+    rows = 3
+    cols = 3
+    n = rows * cols
+    fig, axes = plt.subplots(rows, cols, figsize=(10, 12))
+
+    for i, (audio, label) in enumerate(waveform_label_dataset.take(n)):
+        r = i // cols
+        c = i % cols
+        ax = axes[r][c]
+        ax.plot(audio.numpy())
+        ax.set_yticks(np.arange(-1.2, 1.2, 0.2))
+        label = label.numpy().decode('utf-8')
+        ax.set_title(label)
+
+        librosa.display.waveplot(audio)
+
+    plt.show()
 
     # for (audio, label) in enumerate(waveform_label_dataset.take(n)):
     #     print(audio, label)
