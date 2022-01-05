@@ -44,11 +44,13 @@ def get_file_name_from_path_TENSOR(file_path):
     # file_name = file_path[file_path.rfind('/')+1:]
     return parts[-1]
 
+
 def get_file_name_from_path(file_path):
     parts = file_path.split("\\")
 
     # file_name = file_path[file_path.rfind('/')+1:]
     return parts[-1]
+
 
 def csv_file_to_list(csv_file):
     rows = []
@@ -139,6 +141,7 @@ def get_label(csv_list, file_name):
             print("File: " + file_name + " is not present.")
             return -1
 
+
 # Function that puts the 2 above together
 # def get_waveform_and_label(file_path):
 #   CSV_PATH = '/content/drive/MyDrive/MSA/UrbanSound8K/metadata/UrbanSound8K.csv'
@@ -188,7 +191,26 @@ def prepare_waveform_dataset(files_dataset, csv_list):
 
     return waveform_label_dataset
 
-#sess = tf.compat.v1.Session(config=tf.ConfigProto(log_device_placement=True))
+
+def data_generator(sound_arrays, labels):
+    for i in range(len(sound_arrays)):
+        audio_ragged_tensor = tf.ragged.constant(sound_arrays[i])
+        label_ragged_tensor = tf.ragged.constant(labels[i])
+        yield audio_ragged_tensor, label_ragged_tensor
+
+def data_PORCODDIO(sound_arrays, labels):
+    dataset_DIOCANE = []
+    # for i in range(len(sound_arrays)):
+    for i in range(3):
+        audio_ragged_tensor = tf.ragged.constant(sound_arrays[i])
+        label_ragged_tensor = tf.ragged.constant(labels[i])
+        print(audio_ragged_tensor)
+        print(label_ragged_tensor)
+        dataset_DIOCANE.append((audio_ragged_tensor, label_ragged_tensor))
+    return dataset_DIOCANE
+
+
+# sess = tf.compat.v1.Session(config=tf.ConfigProto(log_device_placement=True))
 
 
 # Press the green button in the gutter to run the script.
@@ -204,7 +226,8 @@ if __name__ == '__main__':
 
     DATASET_PATH = '/Users/drugh/Documents/PycharmProjects/MSA_Project/UrbanSound8K'
 
-    DATASET_PATH = os.path.join('C:',os.sep,'Users','drugh','Documents','PycharmProjects','MSA_Project','UrbanSound8K')
+    DATASET_PATH = os.path.join('C:', os.sep, 'Users', 'drugh', 'Documents', 'PycharmProjects', 'MSA_Project',
+                                'UrbanSound8K')
     print("DATASET_PATH is : " + DATASET_PATH)
 
     data_dir = pathlib.Path(DATASET_PATH)
@@ -221,7 +244,7 @@ if __name__ == '__main__':
     # print('Commands:', commands)
 
     # train_set = tf.io.gfile.glob(str(data_dir) + '/audio/fold1/*.wav')
-    train_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio','fold1','*.wav'))
+    train_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep, 'audio', 'fold1', '*.wav'))
     # train_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold2', '*.wav'))
     # train_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold3', '*.wav'))
     # train_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold4', '*.wav'))
@@ -236,7 +259,7 @@ if __name__ == '__main__':
     #     print(elem)
 
     # test_set = tf.io.gfile.glob(str(data_dir) + '/audio/fold5/*.wav')
-    test_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold5', '*.wav'))
+    test_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep, 'audio', 'fold5', '*.wav'))
     # test_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold7', '*.wav'))
     # test_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold8', '*.wav'))
     # test_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold9', '*.wav'))
@@ -248,7 +271,7 @@ if __name__ == '__main__':
     # test_set += tf.io.gfile.glob(str(data_dir) + '/audio/fold10/*.wav')
 
     # test_file = tf.io.read_file(DATASET_PATH + '/audio/fold1/7061-6-0-0.wav')
-    test_file = tf.io.read_file(os.path.join(DATASET_PATH,'audio','fold1','7061-6-0-0.wav'))
+    test_file = tf.io.read_file(os.path.join(DATASET_PATH, 'audio', 'fold1', '7061-6-0-0.wav'))
 
     test_audio, _ = tf.audio.decode_wav(contents=test_file)
     test_audio.shape
@@ -272,8 +295,8 @@ if __name__ == '__main__':
     # print(parts[-1])
 
     CSV_PATH = '/Users/drugh/Documents/PycharmProjects/MSA_Project/UrbanSound8K/metadata/UrbanSound8K.csv'
-    CSV_PATH = os.path.join('C:',os.sep,'Users','drugh','Documents','PycharmProjects',
-                            'MSA_Project','UrbanSound8K','metadata','UrbanSound8K.csv')
+    CSV_PATH = os.path.join('C:', os.sep, 'Users', 'drugh', 'Documents', 'PycharmProjects',
+                            'MSA_Project', 'UrbanSound8K', 'metadata', 'UrbanSound8K.csv')
 
     global OPEN_FILE
     OPEN_FILE = open_csv_file(CSV_PATH)
@@ -305,15 +328,29 @@ if __name__ == '__main__':
     # waveform_label_dataset = tf.data.Dataset.from_tensor_slices(sound_arrays, labels)
     # waveform_label_dataset = tf.data.Dataset.from_tensor_slices(sound_arrays)
 
+    # waveform_label_dataset = tf.data.Dataset.from_generator(
+    #     lambda: iter(zip(sound_arrays, labels)),
+    #     output_types=(tf.float32, tf.int64),
+    #     output_signature=(
+    #         tf.TensorSpec(shape=(), dtype=tf.int32),
+    #         tf.RaggedTensorSpec(shape=(2, None), dtype=tf.int32))
+    # ).padded_batch(
+    #     batch_size=32,
+    #     padded_shapes=([None], ())
+    # )
+
     # TODO: Understand if both sound_arrays and labels elems must be converted to tensors
     #       and also how to pad these tensors to the same size (this seems to be the issue here)
-    waveform_label_dataset = tf.data.Dataset.from_generator(
-        lambda: iter(zip(sound_arrays, labels)),
-        output_types=(tf.float32, tf.int64)
-    ).padded_batch(
-        batch_size=32,
-        padded_shapes=([None], ())
-    )
+    # waveform_label_dataset = tf.data.Dataset.from_generator(
+    #     data_generator,
+    #     args=[sound_arrays, labels],
+    #     output_signature=(
+    #         tf.RaggedTensorSpec(shape=(None, 2), dtype=tf.float32)),
+    # )
+
+    waveform_label_dataset = data_PORCODDIO(sound_arrays, labels)
+    print("Il Dataset è: " )
+    print(waveform_label_dataset)
 
     rows = 3
     cols = 3
