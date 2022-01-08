@@ -209,6 +209,42 @@ def data_PORCODDIO(sound_arrays, labels):
         dataset_DIOCANE.append((audio_ragged_tensor, label_ragged_tensor))
     return dataset_DIOCANE
 
+def data_PORCODDIO_CANE(waveform_label_structure):
+    dataset_DIOCANE = []
+    # for i in range(len(waveform_label_structure)):
+    for i in range(3):
+        audio_ragged_tensor = tf.ragged.constant(waveform_label_structure[i][0])
+        # label_ragged_tensor = tf.ragged.constant(labels[i])
+        # print(audio_ragged_tensor)
+        # print(label_ragged_tensor)
+        dataset_DIOCANE.append((audio_ragged_tensor, waveform_label_structure[i][1]))
+    return dataset_DIOCANE
+
+def get_max_length(sound_arrays):
+    max_length = 0
+    for elem in sound_arrays:
+        if len(elem) > max_length:
+            max_length = len(elem)
+    return max_length
+
+# max_in_dims is essentially the desired shape of the output.
+# Note: this function will fail if you provide a shape that is strictly smaller than t in any dimension.
+# in this case max_in_dims = [n, l] where n=1 (each tensor is a single array) and l=max_length of the tensors (384000)
+def pad_up_to(t, max_in_dims, constant_values):
+    s = tf.shape(t)
+    print(s)
+    paddings = [[0, m-s[i]] for (i,m) in enumerate(max_in_dims)]
+    return tf.pad(t, paddings, 'CONSTANT', constant_values=constant_values)
+
+def pad_up_to_SPECIFIC(t, max_in_dims, constant_values):
+    s = tf.shape(t)
+    tensor_shape_tuple = t.get_shape()
+    tensor_shape_list = tensor_shape_tuple.as_list()
+    print(tensor_shape_list[0])
+    paddings = [[0, max_in_dims - tensor_shape_list[0]]]
+    new_t = tf.pad(t, paddings, 'CONSTANT', constant_values=constant_values)
+    print(new_t)
+    return new_t
 
 # sess = tf.compat.v1.Session(config=tf.ConfigProto(log_device_placement=True))
 
@@ -313,16 +349,36 @@ if __name__ == '__main__':
 
     # waveform_ds = files_ds.map(map_func=get_waveform_and_label_2 , num_parallel_calls=AUTOTUNE)
 
+    # sound_arrays = []
+    # labels = []
+    # for elem in waveform_label_structure:
+    #     sound_arrays.append(elem[0])
+    #     label = []
+    #     for char in elem[1]:
+    #         label.append(ord(char))
+    #     labels.append(np.array(label))
+    #     # print(sound_arrays)
+    #     # print(labels)
+
     sound_arrays = []
     labels = []
     for elem in waveform_label_structure:
         sound_arrays.append(elem[0])
-        label = []
-        for char in elem[1]:
-            label.append(ord(char))
-        labels.append(np.array(label))
-        # print(sound_arrays)
-        # print(labels)
+        labels.append(elem[1])
+
+    max_audio_length = get_max_length(sound_arrays)
+
+    sound_tensors_array = []
+    for elem in sound_arrays:
+        t = tf.constant(elem)
+        sound_tensors_array.append(pad_up_to_SPECIFIC(t, 384000, -1))
+
+    # for i in range(100):
+    #     print(sound_tensors[i])
+
+    sound_tensors = tf.data.Dataset.from_tensor_slices(sound_tensors_array)
+    label_tensors = tf.data.Dataset.from_tensor_slices(labels)
+    dataset = tf.data.Dataset.zip((sound_tensors, label_tensors))
 
     # Transforming the data structure into a dataset
     # waveform_label_dataset = tf.data.Dataset.from_tensor_slices(sound_arrays, labels)
@@ -348,16 +404,27 @@ if __name__ == '__main__':
     #         tf.RaggedTensorSpec(shape=(None, 2), dtype=tf.float32)),
     # )
 
-    waveform_label_dataset = data_PORCODDIO(sound_arrays, labels)
-    print("Il Dataset è: " )
-    print(waveform_label_dataset)
+    # print("Sound Tensors is: ")
+    # print(sound_tensors)
+    # print("Label Tensors is: ")
+    # print(label_tensors)
+
+    # for label in enumerate(label_tensors.take(100)):
+    #     print(label)
+
+    # waveform_label_dataset = data_PORCODDIO(sound_arrays, labels)
+    # waveform_label_dataset = data_PORCODDIO_CANE(waveform_label_structure)
+    # print("Il Dataset è: " )
+    # print(waveform_label_dataset)
+
+    # madonnaputtana_DATASET = tf.data.Dataset(waveform_label_dataset)
 
     rows = 3
     cols = 3
     n = rows * cols
     fig, axes = plt.subplots(rows, cols, figsize=(10, 12))
 
-    for i, (audio, label) in enumerate(waveform_label_dataset.take(n)):
+    for i, (audio, label) in enumerate(dataset.take(n)):
         r = i // cols
         c = i % cols
         ax = axes[r][c]
@@ -369,8 +436,5 @@ if __name__ == '__main__':
         librosa.display.waveplot(audio)
 
     plt.show()
-
-    # for (audio, label) in enumerate(waveform_label_dataset.take(n)):
-    #     print(audio, label)
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
