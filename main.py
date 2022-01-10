@@ -5,6 +5,7 @@ import pathlib
 import numpy as np
 import inspect
 
+from librosa import display
 from tensorflow.keras import layers
 from tensorflow.keras import models
 
@@ -236,15 +237,39 @@ def pad_up_to(t, max_in_dims, constant_values):
     paddings = [[0, m-s[i]] for (i,m) in enumerate(max_in_dims)]
     return tf.pad(t, paddings, 'CONSTANT', constant_values=constant_values)
 
+def get_spectrogram(waveform):
+    # Convert the waveform to a spectrogram via a STFT.
+    spectrogram = tf.signal.stft(
+      waveform, frame_length=255, frame_step=128)
+    # Obtain the magnitude of the STFT.
+    spectrogram = tf.abs(spectrogram)
+    # Add a `channels` dimension, so that the spectrogram can be used
+    # as image-like input data with convolution layers (which expect
+    # shape (`batch_size`, `height`, `width`, `channels`).
+    spectrogram = spectrogram[..., tf.newaxis]
+    return spectrogram
+
 def pad_up_to_SPECIFIC(t, max_in_dims, constant_values):
     s = tf.shape(t)
     tensor_shape_tuple = t.get_shape()
     tensor_shape_list = tensor_shape_tuple.as_list()
-    print(tensor_shape_list[0])
     paddings = [[0, max_in_dims - tensor_shape_list[0]]]
     new_t = tf.pad(t, paddings, 'CONSTANT', constant_values=constant_values)
-    print(new_t)
     return new_t
+
+def plot_spectrogram(spectrogram, ax):
+    if len(spectrogram.shape) > 2:
+        assert len(spectrogram.shape) == 3
+    spectrogram = np.squeeze(spectrogram, axis=-1)
+    # Convert the frequencies to log scale and transpose, so that the time is
+    # represented on the x-axis (columns).
+    # Add an epsilon to avoid taking a log of zero.
+    log_spec = np.log(spectrogram.T + np.finfo(float).eps)
+    height = log_spec.shape[0]
+    width = log_spec.shape[1]
+    X = np.linspace(0, np.size(spectrogram), num=width, dtype=int)
+    Y = range(height)
+    ax.pcolormesh(X, Y, log_spec)
 
 # sess = tf.compat.v1.Session(config=tf.ConfigProto(log_device_placement=True))
 
@@ -371,7 +396,10 @@ if __name__ == '__main__':
     sound_tensors_array = []
     for elem in sound_arrays:
         t = tf.constant(elem)
-        sound_tensors_array.append(pad_up_to_SPECIFIC(t, 384000, -1))
+        # asd = tf.transpose(t, [0])
+        # asd = tf.reshape(t, [1,192000])
+        sound_tensor = pad_up_to_SPECIFIC(t, 384000, 0)
+        sound_tensors_array.append(tf.reshape(sound_tensor, [1,384000]))
 
     # for i in range(100):
     #     print(sound_tensors[i])
@@ -419,8 +447,8 @@ if __name__ == '__main__':
 
     # madonnaputtana_DATASET = tf.data.Dataset(waveform_label_dataset)
 
-    rows = 3
-    cols = 3
+    rows = 4
+    cols = 4
     n = rows * cols
     fig, axes = plt.subplots(rows, cols, figsize=(10, 12))
 
@@ -428,13 +456,41 @@ if __name__ == '__main__':
         r = i // cols
         c = i % cols
         ax = axes[r][c]
-        ax.plot(audio.numpy())
+        ax.plot(audio[0].numpy())
         ax.set_yticks(np.arange(-1.2, 1.2, 0.2))
         label = label.numpy().decode('utf-8')
         ax.set_title(label)
 
-        librosa.display.waveplot(audio)
+        librosa.display.waveplot(audio[0].numpy())
 
+    plt.show()
+
+    for waveform, label in dataset.take(1):
+        label = label.numpy().decode('utf-8')
+        spectrogram = get_spectrogram(waveform)
+
+    print('Label:', label)
+    print('Waveform shape:', waveform.shape)
+    print('Spectrogram shape:', spectrogram.shape)
+    # display.display(display.Audio(waveform, rate=16000))
+
+    fig, axes = plt.subplots(2, figsize=(12, 8))
+
+    # TODO: figure out what's happening here
+    timescale = np.arange(waveform.shape[0])
+    print(timescale)
+    print(tf.shape(timescale))
+    print(tf.shape(waveform[0].numpy()))
+    print(waveform)
+    print(waveform[0])
+    print(waveform[0].numpy())
+    # axes[0].plot(timescale, waveform[0].numpy())
+    axes[0].plot(timescale, waveform[0])
+    axes[0].set_title('Waveform')
+    axes[0].set_xlim([0, 44100])
+
+    plot_spectrogram(spectrogram.numpy(), axes[1])
+    axes[1].set_title('Spectrogram')
     plt.show()
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
