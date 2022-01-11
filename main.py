@@ -240,7 +240,7 @@ def pad_up_to(t, max_in_dims, constant_values):
 def get_spectrogram(waveform):
     # Convert the waveform to a spectrogram via a STFT.
     spectrogram = tf.signal.stft(
-      waveform, frame_length=255, frame_step=128)
+      waveform[0], frame_length=255, frame_step=128)
     # Obtain the magnitude of the STFT.
     spectrogram = tf.abs(spectrogram)
     # Add a `channels` dimension, so that the spectrogram can be used
@@ -271,8 +271,16 @@ def plot_spectrogram(spectrogram, ax):
     Y = range(height)
     ax.pcolormesh(X, Y, log_spec)
 
-# sess = tf.compat.v1.Session(config=tf.ConfigProto(log_device_placement=True))
+def labels_to_IDs(label_tensors):
+    label_types = []
 
+    for elem in label_tensors:
+        if elem in label_types:
+            continue
+        else:
+            label_types.append(elem)
+
+    return label_types
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
@@ -476,21 +484,50 @@ if __name__ == '__main__':
 
     fig, axes = plt.subplots(2, figsize=(12, 8))
 
-    # TODO: figure out what's happening here
-    timescale = np.arange(waveform.shape[0])
-    print(timescale)
-    print(tf.shape(timescale))
-    print(tf.shape(waveform[0].numpy()))
-    print(waveform)
-    print(waveform[0])
-    print(waveform[0].numpy())
-    # axes[0].plot(timescale, waveform[0].numpy())
-    axes[0].plot(timescale, waveform[0])
+    timescale = np.arange(waveform.shape[1])
+    axes[0].plot(timescale, waveform[0].numpy())
     axes[0].set_title('Waveform')
     axes[0].set_xlim([0, 44100])
 
     plot_spectrogram(spectrogram.numpy(), axes[1])
     axes[1].set_title('Spectrogram')
     plt.show()
+
+    labels_types = labels_to_IDs(label_tensors)
+
+    spectrograms = []
+    labels_IDs = []
+
+    for waveform, label in dataset:
+        _spectrogram = get_spectrogram(waveform)
+        _label = labels_types.index(label)
+
+        spectrograms.append(_spectrogram)
+        labels_IDs.append(_label)
+
+    spectrogram_tensors = tf.data.Dataset.from_tensor_slices(spectrograms)
+    label_ID_tensors = tf.data.Dataset.from_tensor_slices(labels_IDs)
+    dataset_2 = tf.data.Dataset.zip((spectrogram_tensors, label_ID_tensors))
+
+    rows = 3
+    cols = 3
+    n = rows * cols
+    fig, axes = plt.subplots(rows, cols, figsize=(10, 10))
+
+    for i, (spectrogram, label_id) in enumerate(dataset_2.take(n)):
+        r = i // cols
+        c = i % cols
+        ax = axes[r][c]
+        plot_spectrogram(spectrogram.numpy(), ax)
+        ax.set_title((labels_types[label_id.numpy()]).numpy())
+        ax.axis('off')
+
+    plt.show()
+
+
+    # for (audio, label) in dataset:
+    #     label_id = get_label_ID(label, label_tensors)
+    #     print(label_id)
+
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
