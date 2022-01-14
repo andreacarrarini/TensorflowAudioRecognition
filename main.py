@@ -414,10 +414,10 @@ if __name__ == '__main__':
 
     # train_set = tf.io.gfile.glob(str(data_dir) + '/audio/fold1/*.wav')
     train_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep, 'audio', 'fold1', '*.wav'))
-    # train_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold2', '*.wav'))
-    # train_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold3', '*.wav'))
-    # train_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold4', '*.wav'))
-    # train_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold6', '*.wav'))
+    train_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold2', '*.wav'))
+    train_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold3', '*.wav'))
+    train_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold4', '*.wav'))
+    train_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold6', '*.wav'))
 
     # train_set += tf.io.gfile.glob(str(data_dir) + '/audio/fold2/*.wav')
     # train_set += tf.io.gfile.glob(str(data_dir) + '/audio/fold3/*.wav')
@@ -442,8 +442,6 @@ if __name__ == '__main__':
     # test_audio, _ = tf.audio.decode_wav(contents=test_file)
     # test_audio.shape
 
-    AUTOTUNE = tf.data.AUTOTUNE
-
     CSV_PATH = '/Users/drugh/Documents/PycharmProjects/MSA_Project/UrbanSound8K/metadata/UrbanSound8K.csv'
     CSV_PATH = os.path.join('C:', os.sep, 'Users', 'drugh', 'Documents', 'PycharmProjects',
                             'MSA_Project', 'UrbanSound8K', 'metadata', 'UrbanSound8K.csv')
@@ -458,7 +456,10 @@ if __name__ == '__main__':
     close_csv_file(OPEN_FILE)
 
     # IMPORTANT TO AVOID LOADING IN MEMORY ALL DATASET AT THE SAME TIME (currently trying batch_size * 4)
-    loading_batch_size = 256
+    # loading_batch_size = 256
+    # loading_batch_size = 512
+    # loading_batch_size = 1024
+    loading_batch_size = 8192
 
     # Preparing the data structure: list[(waveform, label), ...]
     waveform_label_structure_TRAIN, train_set = prepare_waveform_dataset(train_set, csv_list, loading_batch_size)
@@ -487,5 +488,61 @@ if __name__ == '__main__':
     train_ds = TRAIN_dataset.batch(batch_size)
     val_ds = TEST_dataset.batch(batch_size)
 
+    AUTOTUNE = tf.data.AUTOTUNE
+
+    train_ds = train_ds.cache().prefetch(AUTOTUNE)
+    val_ds = val_ds.cache().prefetch(AUTOTUNE)
+
+    for spectrogram, _ in TRAIN_dataset.take(1):
+        input_shape = spectrogram.shape
+    print('Input shape:', input_shape)
+    num_labels = len(labels_types)
+
+    # Instantiate the `tf.keras.layers.Normalization` layer.
+    norm_layer = layers.Normalization()
+    # Fit the state of the layer to the spectrograms
+    # with `Normalization.adapt`.
+    norm_layer.adapt(data=TRAIN_dataset.map(map_func=lambda spec, label: spec))
+
+    model = models.Sequential([
+        layers.Input(shape=input_shape),
+        # Downsample the input.
+        layers.Resizing(32, 32),
+        # Normalize.
+        norm_layer,
+        layers.Conv2D(32, 3, activation='relu'),
+        layers.Conv2D(64, 3, activation='relu'),
+        layers.MaxPooling2D(),
+        layers.Dropout(0.25),
+        layers.Flatten(),
+        layers.Dense(128, activation='relu'),
+        layers.Dropout(0.5),
+        layers.Dense(num_labels),
+    ])
+
+    model.summary()
+
+    # Adam's (Neon Genesis Evangelion) model optimization
+
+    model.compile(
+        optimizer=tf.keras.optimizers.Adam(),
+        loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+        metrics=['accuracy'],
+    )
+
+    # 10 Epochs example-training
+
+    EPOCHS = 10
+    history = model.fit(
+        train_ds,
+        validation_data=val_ds,
+        epochs=EPOCHS,
+        callbacks=tf.keras.callbacks.EarlyStopping(verbose=1, patience=2),
+    )
+
+    metrics = history.history
+    plt.plot(history.epoch, metrics['loss'], metrics['val_loss'])
+    plt.legend(['loss', 'val_loss'])
+    plt.show()
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
