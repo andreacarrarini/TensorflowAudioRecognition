@@ -14,6 +14,7 @@ import numpy as np
 import librosa
 import librosa.display
 import matplotlib.pyplot as plt
+import seaborn as sns
 
 import sys
 
@@ -431,13 +432,10 @@ if __name__ == '__main__':
     # test_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold9', '*.wav'))
     # test_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold10', '*.wav'))
 
-    # test_set += tf.io.gfile.glob(str(data_dir) + '/audio/fold7/*.wav')
-    # test_set += tf.io.gfile.glob(str(data_dir) + '/audio/fold8/*.wav')
-    # test_set += tf.io.gfile.glob(str(data_dir) + '/audio/fold9/*.wav')
-    # test_set += tf.io.gfile.glob(str(data_dir) + '/audio/fold10/*.wav')
+    validation_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold7', '*.wav'))
 
     # test_file = tf.io.read_file(DATASET_PATH + '/audio/fold1/7061-6-0-0.wav')
-    test_file = tf.io.read_file(os.path.join(DATASET_PATH, 'audio', 'fold1', '7061-6-0-0.wav'))
+    # test_file = tf.io.read_file(os.path.join(DATASET_PATH, 'audio', 'fold1', '7061-6-0-0.wav'))
 
     # test_audio, _ = tf.audio.decode_wav(contents=test_file)
     # test_audio.shape
@@ -458,16 +456,19 @@ if __name__ == '__main__':
     # IMPORTANT TO AVOID LOADING IN MEMORY ALL DATASET AT THE SAME TIME (currently trying batch_size * 4)
     # loading_batch_size = 256
     # loading_batch_size = 512
-    # loading_batch_size = 1024
-    loading_batch_size = 8192
+    loading_batch_size = 1024
+    # loading_batch_size = 8192
 
     # Preparing the data structure: list[(waveform, label), ...]
     waveform_label_structure_TRAIN, train_set = prepare_waveform_dataset(train_set, csv_list, loading_batch_size)
     waveform_label_structure_TEST, test_set = prepare_waveform_dataset(test_set, csv_list, loading_batch_size)
+    waveform_label_structure_VALIDATION, validation_set = prepare_waveform_dataset(validation_set, csv_list, loading_batch_size)
 
     TRAIN_dataset, label_tensors = build_dataset(waveform_label_structure_TRAIN)
 
     TEST_dataset, non_serve = build_dataset(waveform_label_structure_TEST)
+
+    VALIDATIONS_dataset, non_serve = build_dataset(waveform_label_structure_VALIDATION)
 
     plot_dataset_examples(TRAIN_dataset)
 
@@ -481,12 +482,14 @@ if __name__ == '__main__':
 
     TEST_dataset = build_spectrograms_dataset(TEST_dataset, labels_types)
 
+    VALIDATION_dataset = build_spectrograms_dataset(VALIDATIONS_dataset, labels_types)
+
     plot_spectrogram_dataset(TRAIN_dataset)
 
     # TODO: I'm here
     batch_size = 64
     train_ds = TRAIN_dataset.batch(batch_size)
-    val_ds = TEST_dataset.batch(batch_size)
+    val_ds = VALIDATION_dataset.batch(batch_size)
 
     AUTOTUNE = tf.data.AUTOTUNE
 
@@ -532,7 +535,7 @@ if __name__ == '__main__':
 
     # 10 Epochs example-training
 
-    EPOCHS = 10
+    EPOCHS = 20
     history = model.fit(
         train_ds,
         validation_data=val_ds,
@@ -543,6 +546,34 @@ if __name__ == '__main__':
     metrics = history.history
     plt.plot(history.epoch, metrics['loss'], metrics['val_loss'])
     plt.legend(['loss', 'val_loss'])
+    plt.show()
+
+    # Evaluating the model performance
+    test_audio = []
+    test_labels = []
+
+    for audio, label in TEST_dataset:
+        test_audio.append(audio.numpy())
+        test_labels.append(label.numpy())
+
+    test_audio = np.array(test_audio)
+    test_labels = np.array(test_labels)
+
+    y_pred = np.argmax(model.predict(test_audio), axis=1)
+    y_true = test_labels
+
+    test_acc = sum(y_pred == y_true) / len(y_true)
+    print(f'Test set accuracy: {test_acc:.0%}')
+
+    # Confusion matrix
+    confusion_mtx = tf.math.confusion_matrix(y_true, y_pred)
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(confusion_mtx,
+                xticklabels=labels_types,
+                yticklabels=labels_types,
+                annot=True, fmt='g')
+    plt.xlabel('Prediction')
+    plt.ylabel('Label')
     plt.show()
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
