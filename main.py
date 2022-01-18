@@ -266,11 +266,23 @@ def get_spectrogram(waveform):
     spectrogram = spectrogram[..., tf.newaxis]
     return spectrogram
 
-def pad_up_to_SPECIFIC(t, max_in_dims, constant_values):
+def get_MFCC(waveform):
+    # Extracts Mel-frequency cepstral coefficients
+    # audio = librosa.core.istft(waveform.numpy())
+
+    MFCC = librosa.feature.mfcc(y=waveform, sr=44100, n_mfcc = 50)
+    return MFCC
+
+def pad_up_to_SPECTROGRAM(t, max_in_dims, constant_values):
     s = tf.shape(t)
     tensor_shape_tuple = t.get_shape()
     tensor_shape_list = tensor_shape_tuple.as_list()
     paddings = [[0, max_in_dims - tensor_shape_list[0]]]
+    new_t = tf.pad(t, paddings, 'CONSTANT', constant_values=constant_values)
+    return new_t
+
+def pad_up_to_MFCC(t, constant_values):
+    paddings = [[0, 0], [0, 999-tf.shape(t)[1]]]
     new_t = tf.pad(t, paddings, 'CONSTANT', constant_values=constant_values)
     return new_t
 
@@ -311,7 +323,7 @@ def build_dataset(waveform_label_structure):
     sound_tensors_array = []
     for elem in sound_arrays:
         t = tf.constant(elem)
-        sound_tensor = pad_up_to_SPECIFIC(t, 384000, 0)
+        sound_tensor = pad_up_to_SPECTROGRAM(t, 384000, 0)
         sound_tensors_array.append(tf.reshape(sound_tensor, [1, 384000]))
 
     sound_tensors = tf.data.Dataset.from_tensor_slices(sound_tensors_array)
@@ -319,6 +331,30 @@ def build_dataset(waveform_label_structure):
     dataset = tf.data.Dataset.zip((sound_tensors, label_tensors))
 
     return dataset, label_tensors
+
+def build_MFCC_dataset(waveform_label_structure, labels_types):
+    MFCC_array = []
+    labels_IDs = []
+    for elem in waveform_label_structure:
+        # sound_arrays.append(elem[0])
+        # labels.append(elem[1])
+
+        _mfcc = get_MFCC(elem[0])
+        _label = labels_types.index(elem[1])
+
+        t = tf.constant(_mfcc)
+        # print(t.shape)
+        sound_tensor = pad_up_to_MFCC(t, 0)
+
+        MFCC_array.append(sound_tensor)
+        labels_IDs.append(_label)
+
+
+    mfcc_tensors = tf.data.Dataset.from_tensor_slices(MFCC_array)
+    label_tensors = tf.data.Dataset.from_tensor_slices(labels_IDs)
+    dataset = tf.data.Dataset.zip((mfcc_tensors, label_tensors))
+
+    return dataset
 
 def plot_dataset_examples(dataset):
     rows = 4
@@ -374,6 +410,21 @@ def build_spectrograms_dataset(dataset, labels_types):
     label_ID_tensors = tf.data.Dataset.from_tensor_slices(labels_IDs)
     return tf.data.Dataset.zip((spectrogram_tensors, label_ID_tensors))
 
+# def build_MFCC_dataset(dataset, labels_types):
+#     MFCC_array = []
+#     labels_IDs = []
+#
+#     for waveform, label in dataset:
+#         _mfcc = get_MFCC(waveform)
+#         _label = labels_types.index(label)
+#
+#         MFCC_array.append(_mfcc)
+#         labels_IDs.append(_label)
+#
+#     mfcc_tensors = tf.data.Dataset.from_tensor_slices(MFCC_array)
+#     label_ID_tensors = tf.data.Dataset.from_tensor_slices(labels_IDs)
+#     return tf.data.Dataset.zip((mfcc_tensors, label_ID_tensors))
+
 def plot_spectrogram_dataset(dataset):
     rows = 3
     cols = 3
@@ -420,12 +471,6 @@ if __name__ == '__main__':
     train_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold4', '*.wav'))
     train_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold6', '*.wav'))
 
-    # train_set += tf.io.gfile.glob(str(data_dir) + '/audio/fold2/*.wav')
-    # train_set += tf.io.gfile.glob(str(data_dir) + '/audio/fold3/*.wav')
-    # train_set += tf.io.gfile.glob(str(data_dir) + '/audio/fold4/*.wav')
-    # train_set += tf.io.gfile.glob(str(data_dir) + '/audio/fold6/*.wav')
-
-    # test_set = tf.io.gfile.glob(str(data_dir) + '/audio/fold5/*.wav')
     test_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep, 'audio', 'fold5', '*.wav'))
     # test_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold7', '*.wav'))
     # test_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold8', '*.wav'))
@@ -433,12 +478,6 @@ if __name__ == '__main__':
     # test_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold10', '*.wav'))
 
     validation_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold7', '*.wav'))
-
-    # test_file = tf.io.read_file(DATASET_PATH + '/audio/fold1/7061-6-0-0.wav')
-    # test_file = tf.io.read_file(os.path.join(DATASET_PATH, 'audio', 'fold1', '7061-6-0-0.wav'))
-
-    # test_audio, _ = tf.audio.decode_wav(contents=test_file)
-    # test_audio.shape
 
     CSV_PATH = '/Users/drugh/Documents/PycharmProjects/MSA_Project/UrbanSound8K/metadata/UrbanSound8K.csv'
     CSV_PATH = os.path.join('C:', os.sep, 'Users', 'drugh', 'Documents', 'PycharmProjects',
@@ -474,17 +513,19 @@ if __name__ == '__main__':
 
     labels_types = get_all_label_types(csv_list)
 
-    # TRAIN_dataset_spectrograms = build_spectrograms_dataset(TRAIN_dataset, labels_types)
+    # TRAIN_dataset = build_spectrograms_dataset(TRAIN_dataset, labels_types)
     #
-    # TEST_dataset_spectrograms = build_spectrograms_dataset(TEST_dataset, labels_types)
+    # TEST_dataset = build_spectrograms_dataset(TEST_dataset, labels_types)
+    #
+    # VALIDATION_dataset = build_spectrograms_dataset(VALIDATIONS_dataset, labels_types)
+    #
+    # plot_spectrogram_dataset(TRAIN_dataset)
 
-    TRAIN_dataset = build_spectrograms_dataset(TRAIN_dataset, labels_types)
+    TRAIN_dataset = build_MFCC_dataset(waveform_label_structure_TRAIN, labels_types)
 
-    TEST_dataset = build_spectrograms_dataset(TEST_dataset, labels_types)
+    TEST_dataset = build_MFCC_dataset(waveform_label_structure_TEST, labels_types)
 
-    VALIDATION_dataset = build_spectrograms_dataset(VALIDATIONS_dataset, labels_types)
-
-    plot_spectrogram_dataset(TRAIN_dataset)
+    VALIDATION_dataset = build_MFCC_dataset(waveform_label_structure_VALIDATION, labels_types)
 
     # TODO: I'm here
     batch_size = 64
