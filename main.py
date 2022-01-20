@@ -260,6 +260,7 @@ def get_spectrogram(waveform):
       waveform[0], frame_length=255, frame_step=128)
     # Obtain the magnitude of the STFT.
     spectrogram = tf.abs(spectrogram)
+
     # Add a `channels` dimension, so that the spectrogram can be used
     # as image-like input data with convolution layers (which expect
     # shape (`loading_batch_size`, `height`, `width`, `channels`).
@@ -282,7 +283,7 @@ def pad_up_to_SPECTROGRAM(t, max_in_dims, constant_values):
     return new_t
 
 def pad_up_to_MFCC(t, constant_values):
-    paddings = [[0, 0], [0, 999-tf.shape(t)[1]]]
+    paddings = [[0, 0], [0, 999-tf.shape(t)[1]], [0, 0]]
     new_t = tf.pad(t, paddings, 'CONSTANT', constant_values=constant_values)
     return new_t
 
@@ -340,6 +341,11 @@ def build_MFCC_dataset(waveform_label_structure, labels_types):
         # labels.append(elem[1])
 
         _mfcc = get_MFCC(elem[0])
+        # Add a `channels` dimension, so that the spectrogram can be used
+        # as image-like input data with convolution layers (which expect
+        # shape (`loading_batch_size`, `height`, `width`, `channels`).
+        _mfcc = _mfcc[..., tf.newaxis]
+
         _label = labels_types.index(elem[1])
 
         t = tf.constant(_mfcc)
@@ -352,6 +358,7 @@ def build_MFCC_dataset(waveform_label_structure, labels_types):
 
     mfcc_tensors = tf.data.Dataset.from_tensor_slices(MFCC_array)
     label_tensors = tf.data.Dataset.from_tensor_slices(labels_IDs)
+
     dataset = tf.data.Dataset.zip((mfcc_tensors, label_tensors))
 
     return dataset
@@ -464,20 +471,22 @@ if __name__ == '__main__':
     if not data_dir.exists():
         print("Data_dir doesn't exist!")
 
-    # train_set = tf.io.gfile.glob(str(data_dir) + '/audio/fold1/*.wav')
+
     train_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep, 'audio', 'fold1', '*.wav'))
-    train_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold2', '*.wav'))
-    train_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold3', '*.wav'))
-    train_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold4', '*.wav'))
-    train_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold6', '*.wav'))
+    # train_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold2', '*.wav'))
+    # train_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold3', '*.wav'))
+    # train_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold4', '*.wav'))
+    # train_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold6', '*.wav'))
 
-    test_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep, 'audio', 'fold5', '*.wav'))
-    # test_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold7', '*.wav'))
-    # test_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold8', '*.wav'))
-    # test_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold9', '*.wav'))
-    # test_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold10', '*.wav'))
+    # test_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep, 'audio', 'fold5', '*.wav'))
+    # test_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold8', '*.wav'))
+    # test_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold10', '*.wav'))
 
-    validation_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold7', '*.wav'))
+
+    # validation_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold7', '*.wav'))
+    # validation_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold9', '*.wav'))
+
+
 
     CSV_PATH = '/Users/drugh/Documents/PycharmProjects/MSA_Project/UrbanSound8K/metadata/UrbanSound8K.csv'
     CSV_PATH = os.path.join('C:', os.sep, 'Users', 'drugh', 'Documents', 'PycharmProjects',
@@ -496,7 +505,10 @@ if __name__ == '__main__':
     # loading_batch_size = 256
     # loading_batch_size = 512
     loading_batch_size = 1024
+    # loading_batch_size = 2048
+    # loading_batch_size = 4096
     # loading_batch_size = 8192
+    # loading_batch_size = 99999
 
     # Preparing the data structure: list[(waveform, label), ...]
     waveform_label_structure_TRAIN, train_set = prepare_waveform_dataset(train_set, csv_list, loading_batch_size)
@@ -513,19 +525,19 @@ if __name__ == '__main__':
 
     labels_types = get_all_label_types(csv_list)
 
-    # TRAIN_dataset = build_spectrograms_dataset(TRAIN_dataset, labels_types)
-    #
-    # TEST_dataset = build_spectrograms_dataset(TEST_dataset, labels_types)
-    #
-    # VALIDATION_dataset = build_spectrograms_dataset(VALIDATIONS_dataset, labels_types)
-    #
-    # plot_spectrogram_dataset(TRAIN_dataset)
+    TRAIN_dataset = build_spectrograms_dataset(TRAIN_dataset, labels_types)
 
-    TRAIN_dataset = build_MFCC_dataset(waveform_label_structure_TRAIN, labels_types)
+    TEST_dataset = build_spectrograms_dataset(TEST_dataset, labels_types)
 
-    TEST_dataset = build_MFCC_dataset(waveform_label_structure_TEST, labels_types)
+    VALIDATION_dataset = build_spectrograms_dataset(VALIDATIONS_dataset, labels_types)
 
-    VALIDATION_dataset = build_MFCC_dataset(waveform_label_structure_VALIDATION, labels_types)
+    plot_spectrogram_dataset(TRAIN_dataset)
+
+    # TRAIN_dataset = build_MFCC_dataset(waveform_label_structure_TRAIN, labels_types)
+    #
+    # TEST_dataset = build_MFCC_dataset(waveform_label_structure_TEST, labels_types)
+    #
+    # VALIDATION_dataset = build_MFCC_dataset(waveform_label_structure_VALIDATION, labels_types)
 
     # TODO: I'm here
     batch_size = 64
@@ -576,7 +588,7 @@ if __name__ == '__main__':
 
     # 10 Epochs example-training
 
-    EPOCHS = 20
+    EPOCHS = 50
     history = model.fit(
         train_ds,
         validation_data=val_ds,
