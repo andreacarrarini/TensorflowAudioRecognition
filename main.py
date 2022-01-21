@@ -5,6 +5,7 @@ import pathlib
 import numpy as np
 import inspect
 
+from keras.layers import LSTM, Dropout, Dense
 from librosa import display
 from tensorflow.keras import layers
 from tensorflow.keras import models
@@ -254,17 +255,18 @@ def pad_up_to(t, max_in_dims, constant_values):
     paddings = [[0, m-s[i]] for (i,m) in enumerate(max_in_dims)]
     return tf.pad(t, paddings, 'CONSTANT', constant_values=constant_values)
 
-def get_spectrogram(waveform):
+def get_spectrogram(waveform, is_RNN):
     # Convert the waveform to a spectrogram via a STFT.
     spectrogram = tf.signal.stft(
       waveform[0], frame_length=255, frame_step=128)
     # Obtain the magnitude of the STFT.
     spectrogram = tf.abs(spectrogram)
 
-    # Add a `channels` dimension, so that the spectrogram can be used
-    # as image-like input data with convolution layers (which expect
-    # shape (`loading_batch_size`, `height`, `width`, `channels`).
-    spectrogram = spectrogram[..., tf.newaxis]
+    if not is_RNN:
+        # Add a `channels` dimension, so that the spectrogram can be used
+        # as image-like input data with convolution layers (which expect
+        # shape (`loading_batch_size`, `height`, `width`, `channels`).
+        spectrogram = spectrogram[..., tf.newaxis]
     return spectrogram
 
 def get_MFCC(waveform):
@@ -282,15 +284,22 @@ def pad_up_to_SPECTROGRAM(t, max_in_dims, constant_values):
     new_t = tf.pad(t, paddings, 'CONSTANT', constant_values=constant_values)
     return new_t
 
-def pad_up_to_MFCC(t, constant_values):
-    paddings = [[0, 0], [0, 999-tf.shape(t)[1]], [0, 0]]
+def pad_up_to_MFCC(t, constant_values, is_RNN):
+    x = 999-tf.shape(t)[1]
+    if x < 0:
+        x = 0
+    if is_RNN:
+        paddings = [[0, 0], [0, x]]
+    else:
+        paddings = [[0, 0], [0, x], [0, 0]]
     new_t = tf.pad(t, paddings, 'CONSTANT', constant_values=constant_values)
     return new_t
 
-def plot_spectrogram(spectrogram, ax):
+def plot_spectrogram(spectrogram, ax, is_RNN):
     if len(spectrogram.shape) > 2:
         assert len(spectrogram.shape) == 3
-    spectrogram = np.squeeze(spectrogram, axis=-1)
+    if not is_RNN:
+        spectrogram = np.squeeze(spectrogram, axis=-1)
     # Convert the frequencies to log scale and transpose, so that the time is
     # represented on the x-axis (columns).
     # Add an epsilon to avoid taking a log of zero.
@@ -333,7 +342,7 @@ def build_dataset(waveform_label_structure):
 
     return dataset, label_tensors
 
-def build_MFCC_dataset(waveform_label_structure, labels_types):
+def build_MFCC_dataset(waveform_label_structure, labels_types, is_RNN):
     MFCC_array = []
     labels_IDs = []
     for elem in waveform_label_structure:
@@ -341,16 +350,22 @@ def build_MFCC_dataset(waveform_label_structure, labels_types):
         # labels.append(elem[1])
 
         _mfcc = get_MFCC(elem[0])
-        # Add a `channels` dimension, so that the spectrogram can be used
-        # as image-like input data with convolution layers (which expect
-        # shape (`loading_batch_size`, `height`, `width`, `channels`).
-        _mfcc = _mfcc[..., tf.newaxis]
+
+        # To avoid padding every other to the useless length of the longest
+        if len(_mfcc[0]) > 999:
+            continue
+
+        if not is_RNN:
+            # Add a `channels` dimension, so that the spectrogram can be used
+            # as image-like input data with convolution layers (which expect
+            # shape (`loading_batch_size`, `height`, `width`, `channels`).
+            _mfcc = _mfcc[..., tf.newaxis]
 
         _label = labels_types.index(elem[1])
 
         t = tf.constant(_mfcc)
         # print(t.shape)
-        sound_tensor = pad_up_to_MFCC(t, 0)
+        sound_tensor = pad_up_to_MFCC(t, 0, is_RNN)
 
         MFCC_array.append(sound_tensor)
         labels_IDs.append(_label)
@@ -363,7 +378,7 @@ def build_MFCC_dataset(waveform_label_structure, labels_types):
 
     return dataset
 
-def plot_dataset_examples(dataset):
+def plot_dataset_examples(dataset, is_RNN):
     rows = 4
     cols = 4
     n = rows * cols
@@ -384,7 +399,7 @@ def plot_dataset_examples(dataset):
 
     for waveform, label in dataset.take(1):
         label = label.numpy().decode('utf-8')
-        spectrogram = get_spectrogram(waveform)
+        spectrogram = get_spectrogram(waveform, False)
 
     print('Label:', label)
     print('Waveform shape:', waveform.shape)
@@ -398,16 +413,16 @@ def plot_dataset_examples(dataset):
     axes[0].set_title('Waveform')
     axes[0].set_xlim([0, 44100])
 
-    plot_spectrogram(spectrogram.numpy(), axes[1])
+    plot_spectrogram(spectrogram.numpy(), axes[1], is_RNN)
     axes[1].set_title('Spectrogram')
     plt.show()
 
-def build_spectrograms_dataset(dataset, labels_types):
+def build_spectrograms_dataset(dataset, labels_types, is_RNN):
     spectrograms = []
     labels_IDs = []
 
     for waveform, label in dataset:
-        _spectrogram = get_spectrogram(waveform)
+        _spectrogram = get_spectrogram(waveform, is_RNN)
         _label = labels_types.index(label)
 
         spectrograms.append(_spectrogram)
@@ -432,7 +447,7 @@ def build_spectrograms_dataset(dataset, labels_types):
 #     label_ID_tensors = tf.data.Dataset.from_tensor_slices(labels_IDs)
 #     return tf.data.Dataset.zip((mfcc_tensors, label_ID_tensors))
 
-def plot_spectrogram_dataset(dataset):
+def plot_spectrogram_dataset(dataset, is_RNN):
     rows = 3
     cols = 3
     n = rows * cols
@@ -442,11 +457,64 @@ def plot_spectrogram_dataset(dataset):
         r = i // cols
         c = i % cols
         ax = axes[r][c]
-        plot_spectrogram(spectrogram.numpy(), ax)
+        plot_spectrogram(spectrogram.numpy(), ax, is_RNN)
         ax.set_title((labels_types[label_id.numpy()]))
         ax.axis('off')
 
     plt.show()
+
+def build_RNN(labels_number, input_shape):
+    # input_shape = (128, 1000)
+    model = tf.keras.Sequential()
+    # model.add(LSTM(128, input_shape=input_shape))
+    model.add(LSTM(128, input_shape=input_shape))
+    model.add(Dropout(0.2))
+    model.add(Dense(128, activation='relu'))
+    model.add(Dense(64, activation='relu'))
+    model.add(Dropout(0.4))
+    model.add(Dense(48, activation='relu'))
+    model.add(Dropout(0.4))
+    model.add(Dense(labels_number, activation='softmax'))
+    model.summary()
+    return model
+
+def build_CNN(labels_number, train_ds):
+    # Instantiate the `tf.keras.layers.Normalization` layer.
+    norm_layer = layers.Normalization()
+    # Fit the state of the layer to the spectrograms
+    # with `Normalization.adapt`.
+    norm_layer.adapt(data=train_ds.map(map_func=lambda spec, label: spec))
+
+    model = models.Sequential([
+        layers.Input(shape=input_shape),
+        # Downsample the input.
+        layers.Resizing(32, 32),
+        # Normalize.
+        norm_layer,
+        layers.Conv2D(32, 3, activation='relu'),
+        layers.Conv2D(64, 3, activation='relu'),
+        layers.MaxPooling2D(),
+        layers.Dropout(0.25),
+        layers.Flatten(),
+        layers.Dense(128, activation='relu'),
+        layers.Dropout(0.5),
+        layers.Dense(labels_number),
+    ])
+
+    return model
+
+def build_all_spectrograms_datasets(train_ds, val_ds, test_ds, labels_types, is_RNN):
+    TRAIN_dataset = build_spectrograms_dataset(train_ds, labels_types, is_RNN)
+    VALIDATION_dataset = build_spectrograms_dataset(val_ds, labels_types, is_RNN)
+    TEST_dataset = build_spectrograms_dataset(test_ds, labels_types, is_RNN)
+    return TRAIN_dataset, VALIDATION_dataset, TEST_dataset
+
+def build_all_MFCC_datasets(train_ds, val_ds, test_ds, labels_types, is_RNN):
+    TRAIN_dataset = build_MFCC_dataset(train_ds, labels_types, is_RNN)
+    VALIDATION_dataset = build_MFCC_dataset(val_ds, labels_types, is_RNN)
+    TEST_dataset = build_MFCC_dataset(test_ds, labels_types, is_RNN)
+    return TRAIN_dataset, VALIDATION_dataset, TEST_dataset
+
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
@@ -472,18 +540,18 @@ if __name__ == '__main__':
         print("Data_dir doesn't exist!")
 
 
-    train_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep, 'audio', 'fold1', '*.wav'))
+    # train_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep, 'audio', 'fold1', '*.wav'))
     # train_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold2', '*.wav'))
     # train_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold3', '*.wav'))
-    # train_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold4', '*.wav'))
+    train_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold4', '*.wav'))
     # train_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold6', '*.wav'))
 
     # test_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep, 'audio', 'fold5', '*.wav'))
     # test_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold8', '*.wav'))
-    # test_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold10', '*.wav'))
+    test_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold10', '*.wav'))
 
 
-    # validation_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold7', '*.wav'))
+    validation_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold7', '*.wav'))
     # validation_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold9', '*.wav'))
 
 
@@ -515,29 +583,35 @@ if __name__ == '__main__':
     waveform_label_structure_TEST, test_set = prepare_waveform_dataset(test_set, csv_list, loading_batch_size)
     waveform_label_structure_VALIDATION, validation_set = prepare_waveform_dataset(validation_set, csv_list, loading_batch_size)
 
-    TRAIN_dataset, label_tensors = build_dataset(waveform_label_structure_TRAIN)
-
-    TEST_dataset, non_serve = build_dataset(waveform_label_structure_TEST)
-
-    VALIDATIONS_dataset, non_serve = build_dataset(waveform_label_structure_VALIDATION)
-
-    plot_dataset_examples(TRAIN_dataset)
-
     labels_types = get_all_label_types(csv_list)
 
-    TRAIN_dataset = build_spectrograms_dataset(TRAIN_dataset, labels_types)
-
-    TEST_dataset = build_spectrograms_dataset(TEST_dataset, labels_types)
-
-    VALIDATION_dataset = build_spectrograms_dataset(VALIDATIONS_dataset, labels_types)
-
-    plot_spectrogram_dataset(TRAIN_dataset)
-
-    # TRAIN_dataset = build_MFCC_dataset(waveform_label_structure_TRAIN, labels_types)
+    # Only for Spectrograms
+    # TRAIN_dataset, label_tensors = build_dataset(waveform_label_structure_TRAIN)
+    # plot_dataset_examples(TRAIN_dataset, False)
     #
-    # TEST_dataset = build_MFCC_dataset(waveform_label_structure_TEST, labels_types)
+    # TEST_dataset, non_serve = build_dataset(waveform_label_structure_TEST)
     #
-    # VALIDATION_dataset = build_MFCC_dataset(waveform_label_structure_VALIDATION, labels_types)
+    # VALIDATION_dataset, non_serve = build_dataset(waveform_label_structure_VALIDATION)
+
+    # For CNN - Spectrogram
+    # TRAIN_dataset, VALIDATION_dataset, TEST_dataset = build_all_spectrograms_datasets(
+    #     TRAIN_dataset, VALIDATION_dataset, TEST_dataset, labels_types, False)
+    # plot_spectrogram_dataset(TRAIN_dataset, False)
+
+    # For RNN - Spectrogram
+    # TRAIN_dataset, VALIDATION_dataset, TEST_dataset = build_all_spectrograms_datasets(
+    #     TRAIN_dataset, VALIDATION_dataset, TEST_dataset, labels_types, True)
+    # plot_spectrogram_dataset(TRAIN_dataset, True)
+
+    # For CNN - MFCC
+    # TRAIN_dataset, VALIDATION_dataset, TEST_dataset = build_all_MFCC_datasets(
+    #         waveform_label_structure_TRAIN, waveform_label_structure_VALIDATION,
+    #         waveform_label_structure_TEST, labels_types, False)
+
+    #  For RNN - MFCC
+    TRAIN_dataset, VALIDATION_dataset, TEST_dataset = build_all_MFCC_datasets(
+        waveform_label_structure_TRAIN, waveform_label_structure_VALIDATION,
+        waveform_label_structure_TEST, labels_types, True)
 
     # TODO: I'm here
     batch_size = 64
@@ -554,27 +628,9 @@ if __name__ == '__main__':
     print('Input shape:', input_shape)
     num_labels = len(labels_types)
 
-    # Instantiate the `tf.keras.layers.Normalization` layer.
-    norm_layer = layers.Normalization()
-    # Fit the state of the layer to the spectrograms
-    # with `Normalization.adapt`.
-    norm_layer.adapt(data=TRAIN_dataset.map(map_func=lambda spec, label: spec))
+    # model = build_CNN(num_labels, train_ds)
 
-    model = models.Sequential([
-        layers.Input(shape=input_shape),
-        # Downsample the input.
-        layers.Resizing(32, 32),
-        # Normalize.
-        norm_layer,
-        layers.Conv2D(32, 3, activation='relu'),
-        layers.Conv2D(64, 3, activation='relu'),
-        layers.MaxPooling2D(),
-        layers.Dropout(0.25),
-        layers.Flatten(),
-        layers.Dense(128, activation='relu'),
-        layers.Dropout(0.5),
-        layers.Dense(num_labels),
-    ])
+    model = build_RNN(num_labels, input_shape)
 
     model.summary()
 
