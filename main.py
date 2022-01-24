@@ -185,6 +185,9 @@ def prepare_waveform_dataset(files_dataset, csv_list, batch_size):
 
         sound_file, sampling_rate = librosa.load(str(file_path), sr=None)
 
+        if len(sound_file) > 200000:
+            sound_file = sound_file[:199999]
+
         waveform_label_dataset.append((sound_file, label))
 
         count += 1
@@ -273,7 +276,24 @@ def get_MFCC(waveform):
     # Extracts Mel-frequency cepstral coefficients
     # audio = librosa.core.istft(waveform.numpy())
 
-    MFCC = librosa.feature.mfcc(y=waveform, sr=44100, n_mfcc = 50)
+    # MFCC = librosa.feature.mfcc(y=waveform, sr=44100, n_mfcc=50)
+    if len(waveform) > 200000:
+        MFCC = librosa.feature.mfcc(y=waveform[:int(len(waveform)/2)], n_mfcc=50)
+        # MFCC = librosa.feature.mfcc(y=waveform[:int(len(waveform)/2)], sr=22050, n_mfcc=50)
+    else:
+        MFCC = librosa.feature.mfcc(y=waveform, n_mfcc=50)
+        # MFCC = librosa.feature.mfcc(y=waveform, sr=22050, n_mfcc=50)
+
+    if len(MFCC[0]) > 400:
+        for i in range(399):
+            MFCC[i] = MFCC[i][:399]
+    # MFCC = librosa.feature.mfcc(y=waveform, sr=44100, n_mfcc=128)
+
+    # TEST
+    # hop_length = 512  # the default spacing between frames
+    # n_fft = 255  # number of samples
+    # MFCC = librosa.feature.mfcc(y=waveform, n_fft=n_fft, hop_length=hop_length, n_mfcc=128)
+
     return MFCC
 
 def pad_up_to_SPECTROGRAM(t, max_in_dims, constant_values):
@@ -285,7 +305,8 @@ def pad_up_to_SPECTROGRAM(t, max_in_dims, constant_values):
     return new_t
 
 def pad_up_to_MFCC(t, constant_values, is_RNN):
-    x = 999-tf.shape(t)[1]
+    # x = 999-tf.shape(t)[1]
+    x = 400-tf.shape(t)[1]
     if x < 0:
         x = 0
     if is_RNN:
@@ -333,8 +354,10 @@ def build_dataset(waveform_label_structure):
     sound_tensors_array = []
     for elem in sound_arrays:
         t = tf.constant(elem)
-        sound_tensor = pad_up_to_SPECTROGRAM(t, 384000, 0)
-        sound_tensors_array.append(tf.reshape(sound_tensor, [1, 384000]))
+        # sound_tensor = pad_up_to_SPECTROGRAM(t, 384000, 0)
+        # sound_tensors_array.append(tf.reshape(sound_tensor, [1, 384000]))
+        sound_tensor = pad_up_to_SPECTROGRAM(t, 200000, 0)
+        sound_tensors_array.append(tf.reshape(sound_tensor, [1, 200000]))
 
     sound_tensors = tf.data.Dataset.from_tensor_slices(sound_tensors_array)
     label_tensors = tf.data.Dataset.from_tensor_slices(labels)
@@ -352,7 +375,8 @@ def build_MFCC_dataset(waveform_label_structure, labels_types, is_RNN):
         _mfcc = get_MFCC(elem[0])
 
         # To avoid padding every other to the useless length of the longest
-        if len(_mfcc[0]) > 999:
+        # if len(_mfcc[0]) > 999:
+        if len(_mfcc[0]) > 400:
             continue
 
         if not is_RNN:
@@ -465,17 +489,19 @@ def plot_spectrogram_dataset(dataset, is_RNN):
 
 def build_RNN(labels_number, input_shape):
     # input_shape = (128, 1000)
-    model = tf.keras.Sequential()
-    # model.add(LSTM(128, input_shape=input_shape))
-    model.add(LSTM(128, input_shape=input_shape))
-    model.add(Dropout(0.2))
-    model.add(Dense(128, activation='relu'))
-    model.add(Dense(64, activation='relu'))
-    model.add(Dropout(0.4))
-    model.add(Dense(48, activation='relu'))
-    model.add(Dropout(0.4))
-    model.add(Dense(labels_number, activation='softmax'))
-    model.summary()
+    model = models.Sequential([
+        # layers.LSTM(128, input_shape=input_shape)),
+        # layers.Resizing(32, 32),
+        layers.LSTM(128, input_shape=input_shape),
+        layers.Dropout(0.2),
+        layers.Dense(128, activation='relu'),
+        layers.Dense(64, activation='relu'),
+        layers.Dropout(0.4),
+        layers.Dense(48, activation='relu'),
+        layers.Dropout(0.4),
+        layers.Dense(labels_number, activation='softmax'),
+    ])
+
     return model
 
 def build_CNN(labels_number, train_ds):
@@ -540,19 +566,19 @@ if __name__ == '__main__':
         print("Data_dir doesn't exist!")
 
 
-    # train_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep, 'audio', 'fold1', '*.wav'))
-    # train_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold2', '*.wav'))
-    # train_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold3', '*.wav'))
-    train_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold4', '*.wav'))
-    # train_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold6', '*.wav'))
+    train_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep, 'audio', 'fold1', '*.wav'))
+    train_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold2', '*.wav'))
+    train_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold3', '*.wav'))
+    train_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold4', '*.wav'))
+    train_set += tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold6', '*.wav'))
 
     # test_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep, 'audio', 'fold5', '*.wav'))
     # test_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold8', '*.wav'))
     test_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold10', '*.wav'))
 
 
-    validation_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold7', '*.wav'))
-    # validation_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold9', '*.wav'))
+    # validation_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold7', '*.wav'))
+    validation_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold9', '*.wav'))
 
 
 
@@ -570,9 +596,9 @@ if __name__ == '__main__':
     close_csv_file(OPEN_FILE)
 
     # IMPORTANT TO AVOID LOADING IN MEMORY ALL DATASET AT THE SAME TIME (currently trying batch_size * 4)
-    # loading_batch_size = 256
+    loading_batch_size = 256
     # loading_batch_size = 512
-    loading_batch_size = 1024
+    # loading_batch_size = 1024
     # loading_batch_size = 2048
     # loading_batch_size = 4096
     # loading_batch_size = 8192
@@ -586,12 +612,12 @@ if __name__ == '__main__':
     labels_types = get_all_label_types(csv_list)
 
     # Only for Spectrograms
-    # TRAIN_dataset, label_tensors = build_dataset(waveform_label_structure_TRAIN)
-    # plot_dataset_examples(TRAIN_dataset, False)
-    #
-    # TEST_dataset, non_serve = build_dataset(waveform_label_structure_TEST)
-    #
-    # VALIDATION_dataset, non_serve = build_dataset(waveform_label_structure_VALIDATION)
+    TRAIN_dataset, label_tensors = build_dataset(waveform_label_structure_TRAIN)
+    plot_dataset_examples(TRAIN_dataset, False)
+
+    TEST_dataset, non_serve = build_dataset(waveform_label_structure_TEST)
+
+    VALIDATION_dataset, non_serve = build_dataset(waveform_label_structure_VALIDATION)
 
     # For CNN - Spectrogram
     # TRAIN_dataset, VALIDATION_dataset, TEST_dataset = build_all_spectrograms_datasets(
@@ -599,9 +625,9 @@ if __name__ == '__main__':
     # plot_spectrogram_dataset(TRAIN_dataset, False)
 
     # For RNN - Spectrogram
-    # TRAIN_dataset, VALIDATION_dataset, TEST_dataset = build_all_spectrograms_datasets(
-    #     TRAIN_dataset, VALIDATION_dataset, TEST_dataset, labels_types, True)
-    # plot_spectrogram_dataset(TRAIN_dataset, True)
+    TRAIN_dataset, VALIDATION_dataset, TEST_dataset = build_all_spectrograms_datasets(
+        TRAIN_dataset, VALIDATION_dataset, TEST_dataset, labels_types, True)
+    plot_spectrogram_dataset(TRAIN_dataset, True)
 
     # For CNN - MFCC
     # TRAIN_dataset, VALIDATION_dataset, TEST_dataset = build_all_MFCC_datasets(
@@ -609,9 +635,9 @@ if __name__ == '__main__':
     #         waveform_label_structure_TEST, labels_types, False)
 
     #  For RNN - MFCC
-    TRAIN_dataset, VALIDATION_dataset, TEST_dataset = build_all_MFCC_datasets(
-        waveform_label_structure_TRAIN, waveform_label_structure_VALIDATION,
-        waveform_label_structure_TEST, labels_types, True)
+    # TRAIN_dataset, VALIDATION_dataset, TEST_dataset = build_all_MFCC_datasets(
+    #     waveform_label_structure_TRAIN, waveform_label_structure_VALIDATION,
+    #     waveform_label_structure_TEST, labels_types, True)
 
     # TODO: I'm here
     batch_size = 64
@@ -636,13 +662,20 @@ if __name__ == '__main__':
 
     # Adam's (Neon Genesis Evangelion) model optimization
 
+    # CNN
     model.compile(
-        optimizer=tf.keras.optimizers.Adam(),
+        optimizer=tf.keras.optimizers.Adam(learning_rate=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-07,
+                                           amsgrad=False, name='Adam'),
         loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
         metrics=['accuracy'],
     )
 
-    # 10 Epochs example-training
+    # RNN
+    # model.compile(
+    #         optimizer="adam",
+    #         loss='SparseCategoricalCrossentropy',
+    #         metrics=['acc'],
+    # )
 
     EPOCHS = 50
     history = model.fit(
