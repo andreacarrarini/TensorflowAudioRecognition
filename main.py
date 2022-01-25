@@ -402,6 +402,15 @@ def build_MFCC_dataset(waveform_label_structure, labels_types, is_RNN):
 
     return dataset
 
+def plot_MFCC_example(mfcc):
+    plt.figure(figsize=(6, 4))
+    librosa.display.specshow(mfcc, x_axis='time')
+    plt.colorbar()
+    plt.title('MFCC')
+    plt.tight_layout()
+
+    plt.show()
+
 def plot_dataset_examples(dataset, is_RNN):
     rows = 4
     cols = 4
@@ -487,19 +496,33 @@ def plot_spectrogram_dataset(dataset, is_RNN):
 
     plt.show()
 
-def build_RNN(labels_number, input_shape):
-    # input_shape = (128, 1000)
+def build_ResNet50(labels_number, train_ds):
+    # Instantiate the `tf.keras.layers.Normalization` layer.
+    norm_layer = layers.Normalization()
+    # Fit the state of the layer to the spectrograms
+    # with `Normalization.adapt`.
+    norm_layer.adapt(data=train_ds.map(map_func=lambda spec, label: spec))
+
     model = models.Sequential([
-        # layers.LSTM(128, input_shape=input_shape)),
-        # layers.Resizing(32, 32),
-        layers.LSTM(128, input_shape=input_shape),
-        layers.Dropout(0.2),
-        layers.Dense(128, activation='relu'),
+        layers.Input(shape=input_shape),
+        # Downsample the input.
+        layers.Resizing(64, 64),
+        # Normalize.
+        # norm_layer,
+
+        layers.Conv2D(16, 3, activation='relu'),
+        layers.MaxPooling2D(),
+        layers.Conv2D(32, 3, activation='relu'),
+        layers.MaxPooling2D(),
+        layers.Conv2D(64, 3, activation='relu'),
+        layers.MaxPooling2D(),
+        layers.Flatten(),
+        layers.Dense(16, activation='relu'),
+        layers.Dense(32, activation='relu'),
         layers.Dense(64, activation='relu'),
-        layers.Dropout(0.4),
-        layers.Dense(48, activation='relu'),
-        layers.Dropout(0.4),
-        layers.Dense(labels_number, activation='softmax'),
+        layers.Dense(128, activation='relu'),
+
+        layers.Dense(labels_number)
     ])
 
     return model
@@ -525,6 +548,26 @@ def build_CNN(labels_number, train_ds):
         layers.Dense(128, activation='relu'),
         layers.Dropout(0.5),
         layers.Dense(labels_number),
+    ])
+
+    return model
+
+def build_CNN_2(labels_number, train_ds):
+    model = models.Sequential([
+        layers.Conv2D(32,(2, 2),activation='relu',input_shape=input_shape),
+        layers.MaxPooling2D(pool_size=(2, 2)),
+
+        layers.Conv2D(32, (2, 2), activation='relu'),
+        layers.MaxPooling2D(pool_size=(2, 2)),
+
+        layers.Conv2D(64, (2, 2), activation='relu'),
+        layers.MaxPooling2D(pool_size=(2, 2)),
+
+        # Classifier
+        layers.Flatten(),
+        layers.Dense(64, activation='relu'),
+        layers.Dropout(0.5),
+        layers.Dense(labels_number, activation='sigmoid'),
     ])
 
     return model
@@ -612,12 +655,12 @@ if __name__ == '__main__':
     labels_types = get_all_label_types(csv_list)
 
     # Only for Spectrograms
-    TRAIN_dataset, label_tensors = build_dataset(waveform_label_structure_TRAIN)
-    plot_dataset_examples(TRAIN_dataset, False)
-
-    TEST_dataset, non_serve = build_dataset(waveform_label_structure_TEST)
-
-    VALIDATION_dataset, non_serve = build_dataset(waveform_label_structure_VALIDATION)
+    # TRAIN_dataset, label_tensors = build_dataset(waveform_label_structure_TRAIN)
+    # plot_dataset_examples(TRAIN_dataset, False)
+    #
+    # TEST_dataset, non_serve = build_dataset(waveform_label_structure_TEST)
+    #
+    # VALIDATION_dataset, non_serve = build_dataset(waveform_label_structure_VALIDATION)
 
     # For CNN - Spectrogram
     # TRAIN_dataset, VALIDATION_dataset, TEST_dataset = build_all_spectrograms_datasets(
@@ -625,14 +668,14 @@ if __name__ == '__main__':
     # plot_spectrogram_dataset(TRAIN_dataset, False)
 
     # For RNN - Spectrogram
-    TRAIN_dataset, VALIDATION_dataset, TEST_dataset = build_all_spectrograms_datasets(
-        TRAIN_dataset, VALIDATION_dataset, TEST_dataset, labels_types, True)
-    plot_spectrogram_dataset(TRAIN_dataset, True)
+    # TRAIN_dataset, VALIDATION_dataset, TEST_dataset = build_all_spectrograms_datasets(
+    #     TRAIN_dataset, VALIDATION_dataset, TEST_dataset, labels_types, True)
+    # plot_spectrogram_dataset(TRAIN_dataset, True)
 
     # For CNN - MFCC
-    # TRAIN_dataset, VALIDATION_dataset, TEST_dataset = build_all_MFCC_datasets(
-    #         waveform_label_structure_TRAIN, waveform_label_structure_VALIDATION,
-    #         waveform_label_structure_TEST, labels_types, False)
+    TRAIN_dataset, VALIDATION_dataset, TEST_dataset = build_all_MFCC_datasets(
+            waveform_label_structure_TRAIN, waveform_label_structure_VALIDATION,
+            waveform_label_structure_TEST, labels_types, False)
 
     #  For RNN - MFCC
     # TRAIN_dataset, VALIDATION_dataset, TEST_dataset = build_all_MFCC_datasets(
@@ -656,8 +699,11 @@ if __name__ == '__main__':
 
     # model = build_CNN(num_labels, train_ds)
 
-    model = build_RNN(num_labels, input_shape)
+    model = build_CNN_2(num_labels, train_ds)
 
+    # model = build_ResNet50(num_labels, train_ds)
+
+    model.build(input_shape)
     model.summary()
 
     # Adam's (Neon Genesis Evangelion) model optimization
