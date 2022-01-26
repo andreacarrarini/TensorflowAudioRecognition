@@ -2,10 +2,6 @@ import tensorflow as tf
 import os
 import pathlib
 
-import numpy as np
-import inspect
-
-from keras.layers import LSTM, Dropout, Dense
 from librosa import display
 from tensorflow.keras import layers
 from tensorflow.keras import models
@@ -17,43 +13,19 @@ import librosa.display
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-import sys
-
-
 # This function opens the csv file
 def open_csv_file(file_path):
     open_file = open(file_path, 'r')
     return open_file
 
-
 # This function closes the csv file
 def close_csv_file(open_file):
     open_file.close()
 
-
-# The problem with this function is that in the example
-# the audio files were mono channel and so it's different
-# def decode_audio(audio_binary):
-#     # Decode WAV-encoded audio files to `float32` tensors, normalized
-#     # to the [-1.0, 1.0] range. Return `float32` audio and a sample rate.
-#     audio, _ = tf.audio.decode_wav(contents=audio_binary)
-#     return audio
-
-
-# Finds the last / and slices the file path
-def get_file_name_from_path_TENSOR(file_path):
-    parts = tf.strings.split(input=file_path, sep='\\')
-
-    # file_name = file_path[file_path.rfind('/')+1:]
-    return parts[-1]
-
-
 def get_file_name_from_path(file_path):
     parts = file_path.split("\\")
 
-    # file_name = file_path[file_path.rfind('/')+1:]
     return parts[-1]
-
 
 def csv_file_to_list(csv_file):
     rows = []
@@ -62,113 +34,38 @@ def csv_file_to_list(csv_file):
         rows.append(row)
     return rows
 
-
-# Returns: -1 if a < b; 0 if a = b; 1 if a > b:
-def compare_string_tensors(a, b):
-    min_size_elem = a
-    min_size = len(a)
-    if len(b) < len(a):
-        min_size_elem = b
-        min_size = len(b)
-
-    i = 0
-    while i < min_size:
-        if a[i] < int(b[0][i]):
-            return -1
-        elif a[i] > int(b[0][i]):
-            return 1
-        elif a[i] == int(b[0][i]):
-            i += 1
-            if i == min_size:
-                # if they're the same until the last char of the shortest one
-                pippo = len(a)
-                pluto = len(b)
-                if len(a) == len(b[0]):
-                    return 0
-
-                elif len(a) < len(b[0]):
-                    return -1
-
-                elif len(a) > len(b[0]):
-                    return 1
-
-
 # We need the label of the file and we can get it from the csv file
 def get_label(csv_list, file_name):
     low = 0
     high = len(csv_list) - 1
     mid = 0
 
-    step = 0
-
-    # b = tf.convert_to_tensor(file_name, dtype=tf.string)
-    # file_path_parts = tf.strings.split(b, sep='\\')
-    # b = tf.slice(file_path_parts, begin=[9], size=[1])
-    # b = tf.io.decode_raw(b, tf.uint8)
-
     b = file_name
 
     while low <= high:
         mid = (high + low) // 2
 
-        # a = tf.convert_to_tensor(csv_list[mid][0], dtype=tf.string)
         a = csv_list[mid][0]
-
-        # a = tf.io.decode_raw(a, tf.uint8)
-        #
-        # a = a.numpy()
-        # b = b.numpy()
 
         # to simulate a comparison between 2 strings which cannot be done in tf between tensors od different shapes
 
         # If x is greater, ignore left half
-        # if a < b:
-        # if compare_string_tensors(a, b) == -1:
         if a < b:
             low = mid + 1
             continue
 
         # If x is smaller, ignore right half
-        # elif a > b:
-        # elif compare_string_tensors(a, b) == 1:
         elif a > b:
             high = mid - 1
             continue
 
         # means x is present at mid
-        # elif compare_string_tensors(a, b) == 0:
         elif a == b:
             return csv_list[mid][7]
 
         else:
             print("File: " + file_name + " is not present.")
             return -1
-
-
-# Function that puts the 2 above together
-# def get_waveform_and_label(file_path):
-#   CSV_PATH = '/content/drive/MyDrive/MSA/UrbanSound8K/metadata/UrbanSound8K.csv'
-#   open_metadata_file = open_csv_file(CSV_PATH)
-
-#   file_name = get_file_name_from_path(file_path)
-
-#   label = get_label(open_metadata_file, file_name)
-#   audio_binary = tf.io.read_file(file_path)
-#   waveform = decode_audio(audio_binary)
-
-#   close_csv_file(open_metadata_file)
-
-#   return waveform, label
-
-# def get_waveform_and_label_2(file_path):
-#     file_name = get_file_name_from_path(file_path)
-#
-#     label = get_label(csv_list, file_name)
-#     audio_binary = tf.io.read_file(file_path)
-#     waveform = decode_audio(audio_binary)
-#
-#     return waveform, label
-
 
 def prepare_waveform_dataset(files_dataset, csv_list, batch_size):
     waveform_label_dataset = []
@@ -213,35 +110,6 @@ def get_all_label_types(csv_list):
 
     return label_types
 
-
-def data_generator(sound_arrays, labels):
-    for i in range(len(sound_arrays)):
-        audio_ragged_tensor = tf.ragged.constant(sound_arrays[i])
-        label_ragged_tensor = tf.ragged.constant(labels[i])
-        yield audio_ragged_tensor, label_ragged_tensor
-
-def data_PORCODDIO(sound_arrays, labels):
-    dataset_DIOCANE = []
-    # for i in range(len(sound_arrays)):
-    for i in range(3):
-        audio_ragged_tensor = tf.ragged.constant(sound_arrays[i])
-        label_ragged_tensor = tf.ragged.constant(labels[i])
-        print(audio_ragged_tensor)
-        print(label_ragged_tensor)
-        dataset_DIOCANE.append((audio_ragged_tensor, label_ragged_tensor))
-    return dataset_DIOCANE
-
-def data_PORCODDIO_CANE(waveform_label_structure):
-    dataset_DIOCANE = []
-    # for i in range(len(waveform_label_structure_TRAIN)):
-    for i in range(3):
-        audio_ragged_tensor = tf.ragged.constant(waveform_label_structure[i][0])
-        # label_ragged_tensor = tf.ragged.constant(labels[i])
-        # print(audio_ragged_tensor)
-        # print(label_ragged_tensor)
-        dataset_DIOCANE.append((audio_ragged_tensor, waveform_label_structure[i][1]))
-    return dataset_DIOCANE
-
 def get_max_length(sound_arrays):
     max_length = 0
     for elem in sound_arrays:
@@ -274,25 +142,14 @@ def get_spectrogram(waveform, is_RNN):
 
 def get_MFCC(waveform):
     # Extracts Mel-frequency cepstral coefficients
-    # audio = librosa.core.istft(waveform.numpy())
-
-    # MFCC = librosa.feature.mfcc(y=waveform, sr=44100, n_mfcc=50)
     if len(waveform) > 200000:
         MFCC = librosa.feature.mfcc(y=waveform[:int(len(waveform)/2)], n_mfcc=50)
-        # MFCC = librosa.feature.mfcc(y=waveform[:int(len(waveform)/2)], sr=22050, n_mfcc=50)
     else:
         MFCC = librosa.feature.mfcc(y=waveform, n_mfcc=50)
-        # MFCC = librosa.feature.mfcc(y=waveform, sr=22050, n_mfcc=50)
 
     if len(MFCC[0]) > 400:
         for i in range(399):
             MFCC[i] = MFCC[i][:399]
-    # MFCC = librosa.feature.mfcc(y=waveform, sr=44100, n_mfcc=128)
-
-    # TEST
-    # hop_length = 512  # the default spacing between frames
-    # n_fft = 255  # number of samples
-    # MFCC = librosa.feature.mfcc(y=waveform, n_fft=n_fft, hop_length=hop_length, n_mfcc=128)
 
     return MFCC
 
@@ -349,13 +206,9 @@ def build_dataset(waveform_label_structure):
         sound_arrays.append(elem[0])
         labels.append(elem[1])
 
-    # max_audio_length = get_max_length(sound_arrays)
-
     sound_tensors_array = []
     for elem in sound_arrays:
         t = tf.constant(elem)
-        # sound_tensor = pad_up_to_SPECTROGRAM(t, 384000, 0)
-        # sound_tensors_array.append(tf.reshape(sound_tensor, [1, 384000]))
         sound_tensor = pad_up_to_SPECTROGRAM(t, 200000, 0)
         sound_tensors_array.append(tf.reshape(sound_tensor, [1, 200000]))
 
@@ -369,8 +222,6 @@ def build_MFCC_dataset(waveform_label_structure, labels_types, is_RNN):
     MFCC_array = []
     labels_IDs = []
     for elem in waveform_label_structure:
-        # sound_arrays.append(elem[0])
-        # labels.append(elem[1])
 
         _mfcc = get_MFCC(elem[0])
 
@@ -437,7 +288,6 @@ def plot_dataset_examples(dataset, is_RNN):
     print('Label:', label)
     print('Waveform shape:', waveform.shape)
     print('Spectrogram shape:', spectrogram.shape)
-    # display.display(display.Audio(waveform, rate=16000))
 
     fig, axes = plt.subplots(2, figsize=(12, 8))
 
@@ -465,21 +315,6 @@ def build_spectrograms_dataset(dataset, labels_types, is_RNN):
     label_ID_tensors = tf.data.Dataset.from_tensor_slices(labels_IDs)
     return tf.data.Dataset.zip((spectrogram_tensors, label_ID_tensors))
 
-# def build_MFCC_dataset(dataset, labels_types):
-#     MFCC_array = []
-#     labels_IDs = []
-#
-#     for waveform, label in dataset:
-#         _mfcc = get_MFCC(waveform)
-#         _label = labels_types.index(label)
-#
-#         MFCC_array.append(_mfcc)
-#         labels_IDs.append(_label)
-#
-#     mfcc_tensors = tf.data.Dataset.from_tensor_slices(MFCC_array)
-#     label_ID_tensors = tf.data.Dataset.from_tensor_slices(labels_IDs)
-#     return tf.data.Dataset.zip((mfcc_tensors, label_ID_tensors))
-
 def plot_spectrogram_dataset(dataset, is_RNN):
     rows = 3
     cols = 3
@@ -495,6 +330,37 @@ def plot_spectrogram_dataset(dataset, is_RNN):
         ax.axis('off')
 
     plt.show()
+
+def build_VGG16(labels_number, train_ds):
+    # Instantiate the `tf.keras.layers.Normalization` layer.
+    norm_layer = layers.Normalization()
+    # Fit the state of the layer to the spectrograms
+    # with `Normalization.adapt`.
+    norm_layer.adapt(data=train_ds.map(map_func=lambda spec, label: spec))
+
+    model = models.Sequential([
+        layers.Input(shape=input_shape),
+        # Downsample the input.
+        layers.Resizing(64, 64),
+        # Normalize.
+        # norm_layer,
+
+        layers.Conv2D(64, 3, activation='relu'),
+        layers.Conv2D(64, 3, activation='relu'),
+        layers.MaxPooling2D(),
+
+        layers.Conv2D(128, 3, activation='relu'),
+        layers.Conv2D(128, 3, activation='relu'),
+        layers.MaxPooling2D(),
+
+        layers.Flatten(),
+        layers.Dense(1024, activation='relu'),
+        layers.Dense(1024, activation='relu'),
+
+        layers.Dense(labels_number)
+    ])
+
+    return model
 
 def build_ResNet50(labels_number, train_ds):
     # Instantiate the `tf.keras.layers.Normalization` layer.
@@ -639,8 +505,8 @@ if __name__ == '__main__':
     close_csv_file(OPEN_FILE)
 
     # IMPORTANT TO AVOID LOADING IN MEMORY ALL DATASET AT THE SAME TIME (currently trying batch_size * 4)
-    loading_batch_size = 256
-    # loading_batch_size = 512
+    # loading_batch_size = 256
+    loading_batch_size = 512
     # loading_batch_size = 1024
     # loading_batch_size = 2048
     # loading_batch_size = 4096
@@ -655,32 +521,22 @@ if __name__ == '__main__':
     labels_types = get_all_label_types(csv_list)
 
     # Only for Spectrograms
-    # TRAIN_dataset, label_tensors = build_dataset(waveform_label_structure_TRAIN)
-    # plot_dataset_examples(TRAIN_dataset, False)
-    #
-    # TEST_dataset, non_serve = build_dataset(waveform_label_structure_TEST)
-    #
-    # VALIDATION_dataset, non_serve = build_dataset(waveform_label_structure_VALIDATION)
+    TRAIN_dataset, label_tensors = build_dataset(waveform_label_structure_TRAIN)
+    plot_dataset_examples(TRAIN_dataset, False)
 
-    # For CNN - Spectrogram
-    # TRAIN_dataset, VALIDATION_dataset, TEST_dataset = build_all_spectrograms_datasets(
-    #     TRAIN_dataset, VALIDATION_dataset, TEST_dataset, labels_types, False)
-    # plot_spectrogram_dataset(TRAIN_dataset, False)
+    TEST_dataset, non_serve = build_dataset(waveform_label_structure_TEST)
 
-    # For RNN - Spectrogram
-    # TRAIN_dataset, VALIDATION_dataset, TEST_dataset = build_all_spectrograms_datasets(
-    #     TRAIN_dataset, VALIDATION_dataset, TEST_dataset, labels_types, True)
-    # plot_spectrogram_dataset(TRAIN_dataset, True)
+    VALIDATION_dataset, non_serve = build_dataset(waveform_label_structure_VALIDATION)
 
-    # For CNN - MFCC
-    TRAIN_dataset, VALIDATION_dataset, TEST_dataset = build_all_MFCC_datasets(
-            waveform_label_structure_TRAIN, waveform_label_structure_VALIDATION,
-            waveform_label_structure_TEST, labels_types, False)
+    # For CNN/VGG16/ResNet50 - Spectrogram
+    TRAIN_dataset, VALIDATION_dataset, TEST_dataset = build_all_spectrograms_datasets(
+        TRAIN_dataset, VALIDATION_dataset, TEST_dataset, labels_types, False)
+    plot_spectrogram_dataset(TRAIN_dataset, False)
 
-    #  For RNN - MFCC
+    # For CNN/VGG16/ResNet50 - MFCC
     # TRAIN_dataset, VALIDATION_dataset, TEST_dataset = build_all_MFCC_datasets(
-    #     waveform_label_structure_TRAIN, waveform_label_structure_VALIDATION,
-    #     waveform_label_structure_TEST, labels_types, True)
+    #         waveform_label_structure_TRAIN, waveform_label_structure_VALIDATION,
+    #         waveform_label_structure_TEST, labels_types, False)
 
     # TODO: I'm here
     batch_size = 64
@@ -697,11 +553,13 @@ if __name__ == '__main__':
     print('Input shape:', input_shape)
     num_labels = len(labels_types)
 
-    # model = build_CNN(num_labels, train_ds)
+    model = build_CNN(num_labels, train_ds)
 
-    model = build_CNN_2(num_labels, train_ds)
+    # model = build_CNN_2(num_labels, train_ds)
 
     # model = build_ResNet50(num_labels, train_ds)
+
+    # model = build_VGG16(num_labels, train_ds)
 
     model.build(input_shape)
     model.summary()
@@ -715,13 +573,6 @@ if __name__ == '__main__':
         loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
         metrics=['accuracy'],
     )
-
-    # RNN
-    # model.compile(
-    #         optimizer="adam",
-    #         loss='SparseCategoricalCrossentropy',
-    #         metrics=['acc'],
-    # )
 
     EPOCHS = 50
     history = model.fit(
