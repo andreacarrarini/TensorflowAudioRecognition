@@ -7,6 +7,7 @@ import tensorflow as tf
 import functions as fn
 import architectures as arch
 import random
+import csv
 
 
 def build_all_spectrograms_datasets(train_ds, val_ds, test_ds, labels_types, is_RNN):
@@ -52,7 +53,8 @@ def Train_Model(model, feature):
 
     results = []
 
-    for i in range(5):
+    folders_in_train_set = 3
+    for i in range(folders_in_train_set):
 
         # CROSS-VALIDATION
         extracted_test_set = possible_test_set[i]
@@ -62,7 +64,7 @@ def Train_Model(model, feature):
         possible_val_set = possible_test_set.copy()
         possible_val_set.remove(extracted_test_set)
 
-        extracted_val_set = possible_test_set[random.randint(0, 4)]
+        extracted_val_set = possible_test_set[random.randint(0, folders_in_train_set - 1)]
         folder_name = "fold" + extracted_val_set
         validation_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep, 'audio', folder_name, '*.wav'))
 
@@ -150,20 +152,23 @@ def Train_Model(model, feature):
 
         # Adam's (Neon Genesis Evangelion) model optimization
 
+        # HYPERPARAMETERS
+        EPOCHS = 50
+        LEARNING_RATE = 0.001
+
         # CNN
         model.compile(
-            optimizer=tf.keras.optimizers.Adam(learning_rate=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-07,
+            optimizer=tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE, beta_1=0.9, beta_2=0.999, epsilon=1e-07,
                                                amsgrad=False, name='Adam'),
             loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
             metrics=['accuracy'],
         )
 
-        EPOCHS = 50
         history = model.fit(
             train_ds,
             validation_data=val_ds,
             epochs=EPOCHS,
-            callbacks=tf.keras.callbacks.EarlyStopping(verbose=1, patience=2),
+            callbacks=tf.keras.callbacks.EarlyStopping(verbose=1, patience=5),
         )
 
         metrics = history.history
@@ -197,6 +202,10 @@ def Train_Model(model, feature):
                     annot=True, fmt='g')
         plt.xlabel('Prediction')
         plt.ylabel('Label')
+
+        # Save plot as a .png
+        plt.savefig('confusion.png', dpi=300, bbox_inches='tight')
+
         plt.show()
 
         train_acc = history.history['accuracy']
@@ -204,12 +213,13 @@ def Train_Model(model, feature):
         val_acc = history.history['val_accuracy']
         val_loss = history.history['val_loss']
 
-        single_execution_results = [train_acc[-1], train_loss[-1], val_acc[-1], val_loss[-1], test_acc]
+        single_execution_results = ["CNN_1", "Spectrogram", EPOCHS, LEARNING_RATE, fn.truncate(train_acc[-1],3),
+                                    fn.truncate(train_loss[-1],3), fn.truncate(val_acc[-1],3), fn.truncate(val_loss[-1],3),
+                                    fn.truncate(test_acc,3)]
         print(single_execution_results)
 
         results.append(single_execution_results)
     return results
-    # TODO find how to save the images produced during the training
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
@@ -217,5 +227,25 @@ if __name__ == '__main__':
 
     results = Train_Model("ciao", "porcodio")
     print(results)
+
+    header = ['model', 'feature', 'epochs', 'learning_rate', 'train_accuracy',
+              'train_loss', 'val_accuracy', 'val_loss', 'test_accuracy']
+
+    with open('results.csv', 'w', encoding='UTF8', newline='') as f:
+        writer = csv.writer(f)
+
+        writer = csv.DictWriter(f, fieldnames=header)
+
+        writer.writeheader()
+        for i in range(len(results)):
+            writer.writerow({'model': results[i][0], 'feature': results[i][1], 'epochs': results[i][2],
+                             'learning_rate': results[i][3], 'train_accuracy': results[i][4], 'train_loss': results[i][5],
+                             'val_accuracy': results[i][6], 'val_loss': results[i][7], 'test_accuracy': results[i][8]})
+
+        # # write the header
+        # writer.writerow(header)
+        #
+        # # write multiple rows
+        # writer.writerows(results)
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
