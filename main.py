@@ -23,7 +23,7 @@ def build_all_MFCC_datasets(train_ds, val_ds, test_ds, labels_types, is_RNN):
     TEST_dataset = fn.build_MFCC_dataset(test_ds, labels_types, is_RNN)
     return TRAIN_dataset, VALIDATION_dataset, TEST_dataset
 
-def Train_Model(model, feature):
+def Train_Model(model_name, feature):
 
     # Set the seed value for experiment reproducibility.
     seed = 42
@@ -53,185 +53,202 @@ def Train_Model(model, feature):
 
     results = []
 
-    folders_in_train_set = 3
-    for i in range(folders_in_train_set):
+    # Cycling over hyperparameters
+    learning_rates = [0.1, 0.01, 0.001, 0.0001]
+    # epochs_value = [10, 20, 50]
+    epochs_value = [50]
+    for j in learning_rates:
+        LEARNING_RATE = j
 
-        # CROSS-VALIDATION
-        extracted_test_set = possible_test_set[i]
-        folder_name = "fold" + extracted_test_set
-        test_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep, 'audio', folder_name, '*.wav'))
+        for m in epochs_value:
+            EPOCHS = m
 
-        possible_val_set = possible_test_set.copy()
-        possible_val_set.remove(extracted_test_set)
+            folders_in_train_set = 2
+            for i in range(folders_in_train_set):
 
-        extracted_val_set = possible_test_set[random.randint(0, folders_in_train_set - 1)]
-        folder_name = "fold" + extracted_val_set
-        validation_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep, 'audio', folder_name, '*.wav'))
+                # CROSS-VALIDATION
+                extracted_test_set = possible_test_set[i]
+                folder_name = "fold" + extracted_test_set
+                test_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep, 'audio', folder_name, '*.wav'))
 
-        # # test_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep, 'audio', 'fold5', '*.wav'))
-        # # test_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold8', '*.wav'))
-        # test_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep, 'audio', 'fold10', '*.wav'))
-        #
-        # # validation_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold7', '*.wav'))
-        # validation_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep, 'audio', 'fold9', '*.wav'))
+                possible_val_set = possible_test_set.copy()
+                possible_val_set.remove(extracted_test_set)
 
-        CSV_PATH = '/Users/drugh/Documents/PycharmProjects/MSA_Project/UrbanSound8K/metadata/UrbanSound8K.csv'
-        CSV_PATH = os.path.join('C:', os.sep, 'Users', 'drugh', 'Documents', 'PycharmProjects',
-                                'MSA_Project', 'UrbanSound8K', 'metadata', 'UrbanSound8K.csv')
+                extracted_val_set = possible_test_set[random.randint(0, folders_in_train_set - 1)]
+                folder_name = "fold" + extracted_val_set
+                validation_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep, 'audio', folder_name, '*.wav'))
 
-        global OPEN_FILE
-        OPEN_FILE = fn.open_csv_file(CSV_PATH)
+                # # test_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep, 'audio', 'fold5', '*.wav'))
+                # # test_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold8', '*.wav'))
+                # test_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep, 'audio', 'fold10', '*.wav'))
+                #
+                # # validation_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep,'audio', 'fold7', '*.wav'))
+                # validation_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep, 'audio', 'fold9', '*.wav'))
 
-        # It's a list in which each element is a row of the csv file (list of columns)
-        global csv_list
-        csv_list = fn.csv_file_to_list(OPEN_FILE)
+                CSV_PATH = '/Users/drugh/Documents/PycharmProjects/MSA_Project/UrbanSound8K/metadata/UrbanSound8K.csv'
+                CSV_PATH = os.path.join('C:', os.sep, 'Users', 'drugh', 'Documents', 'PycharmProjects',
+                                        'MSA_Project', 'UrbanSound8K', 'metadata', 'UrbanSound8K.csv')
 
-        print("Total number of files in the dataset: " + str(len(csv_list)))
+                global OPEN_FILE
+                OPEN_FILE = fn.open_csv_file(CSV_PATH)
 
-        fn.close_csv_file(OPEN_FILE)
+                # It's a list in which each element is a row of the csv file (list of columns)
+                global csv_list
+                csv_list = fn.csv_file_to_list(OPEN_FILE)
 
-        # IMPORTANT TO AVOID LOADING IN MEMORY ALL DATASET AT THE SAME TIME (currently trying batch_size * 4)
-        loading_batch_size = 256
-        # loading_batch_size = 512
-        # loading_batch_size = 1024
-        # loading_batch_size = 2048
-        # loading_batch_size = 4096
-        # loading_batch_size = 8192
-        # loading_batch_size = 99999
+                print("Total number of files in the dataset: " + str(len(csv_list)))
 
-        # Preparing the data structure: list[(waveform, label), ...]
-        waveform_label_structure_TRAIN, train_set = fn.prepare_waveform_dataset(train_set, csv_list, loading_batch_size)
-        waveform_label_structure_TEST, test_set = fn.prepare_waveform_dataset(test_set, csv_list, loading_batch_size)
-        waveform_label_structure_VALIDATION, validation_set = fn.prepare_waveform_dataset(validation_set, csv_list,
-                                                                                          loading_batch_size)
+                fn.close_csv_file(OPEN_FILE)
 
-        labels_types = fn.get_all_label_types(csv_list)
+                # IMPORTANT TO AVOID LOADING IN MEMORY ALL DATASET AT THE SAME TIME (currently trying batch_size * 4)
+                # loading_batch_size = 256
+                # loading_batch_size = 512
+                loading_batch_size = 1024
+                # loading_batch_size = 2048
+                # loading_batch_size = 4096
+                # loading_batch_size = 8192
+                # loading_batch_size = 99999
 
-        # Only for Spectrograms
-        TRAIN_dataset, label_tensors = fn.build_dataset(waveform_label_structure_TRAIN)
-        fn.plot_dataset_examples(TRAIN_dataset, False)
+                # Preparing the data structure: list[(waveform, label), ...]
+                waveform_label_structure_TRAIN, train_set = fn.prepare_waveform_dataset(train_set, csv_list, loading_batch_size)
+                waveform_label_structure_TEST, test_set = fn.prepare_waveform_dataset(test_set, csv_list, loading_batch_size)
+                waveform_label_structure_VALIDATION, validation_set = fn.prepare_waveform_dataset(validation_set, csv_list,
+                                                                                                  loading_batch_size)
 
-        TEST_dataset, non_serve = fn.build_dataset(waveform_label_structure_TEST)
+                labels_types = fn.get_all_label_types(csv_list)
 
-        VALIDATION_dataset, non_serve = fn.build_dataset(waveform_label_structure_VALIDATION)
+                # Only for Spectrograms
+                TRAIN_dataset, label_tensors = fn.build_dataset(waveform_label_structure_TRAIN)
+                fn.plot_dataset_examples(TRAIN_dataset, False)
 
-        # For CNNs/VGG16/ResNet50 - Spectrogram
-        TRAIN_dataset, VALIDATION_dataset, TEST_dataset = build_all_spectrograms_datasets(
-            TRAIN_dataset, VALIDATION_dataset, TEST_dataset, labels_types, False)
-        fn.plot_spectrogram_dataset(TRAIN_dataset, False, labels_types)
+                TEST_dataset, non_serve = fn.build_dataset(waveform_label_structure_TEST)
 
-        # For CNNs/VGG16/ResNet50 - MFCC
-        # TRAIN_dataset, VALIDATION_dataset, TEST_dataset = build_all_MFCC_datasets(
-        #         waveform_label_structure_TRAIN, waveform_label_structure_VALIDATION,
-        #         waveform_label_structure_TEST, labels_types, False)
+                VALIDATION_dataset, non_serve = fn.build_dataset(waveform_label_structure_VALIDATION)
 
-        batch_size = 64
-        train_ds = TRAIN_dataset.batch(batch_size)
-        val_ds = VALIDATION_dataset.batch(batch_size)
+                # For CNNs/VGG16/ResNet50 - Spectrogram
+                TRAIN_dataset, VALIDATION_dataset, TEST_dataset = build_all_spectrograms_datasets(
+                    TRAIN_dataset, VALIDATION_dataset, TEST_dataset, labels_types, False)
+                fn.plot_spectrogram_dataset(TRAIN_dataset, False, labels_types)
 
-        AUTOTUNE = tf.data.AUTOTUNE
+                # For CNNs/VGG16/ResNet50 - MFCC
+                # TRAIN_dataset, VALIDATION_dataset, TEST_dataset = build_all_MFCC_datasets(
+                #         waveform_label_structure_TRAIN, waveform_label_structure_VALIDATION,
+                #         waveform_label_structure_TEST, labels_types, False)
 
-        train_ds = train_ds.cache().prefetch(AUTOTUNE)
-        val_ds = val_ds.cache().prefetch(AUTOTUNE)
+                batch_size = 64
+                train_ds = TRAIN_dataset.batch(batch_size)
+                val_ds = VALIDATION_dataset.batch(batch_size)
 
-        for spectrogram, _ in TRAIN_dataset.take(1):
-            input_shape = spectrogram.shape
-        print('Input shape:', input_shape)
-        num_labels = len(labels_types)
+                AUTOTUNE = tf.data.AUTOTUNE
 
-        model = arch.build_CNN(num_labels, train_ds, input_shape)
+                train_ds = train_ds.cache().prefetch(AUTOTUNE)
+                val_ds = val_ds.cache().prefetch(AUTOTUNE)
 
-        # model = arch.build_CNN_2(num_labels, train_ds, input_shape)
+                for spectrogram, _ in TRAIN_dataset.take(1):
+                    input_shape = spectrogram.shape
+                print('Input shape:', input_shape)
+                num_labels = len(labels_types)
 
-        # model = arch.build_ResNet50(num_labels, train_ds, input_shape)
+                model = arch.build_CNN(num_labels, train_ds, input_shape)
 
-        # model = arch.build_VGG16(num_labels, train_ds, input_shape)
+                # model = arch.build_CNN_2(num_labels, train_ds, input_shape)
 
-        model.build(input_shape)
-        model.summary()
+                # model = arch.build_ResNet50(num_labels, train_ds, input_shape)
 
-        # Adam's (Neon Genesis Evangelion) model optimization
+                # model = arch.build_VGG16(num_labels, train_ds, input_shape)
 
-        # HYPERPARAMETERS
-        EPOCHS = 50
-        LEARNING_RATE = 0.001
+                model.build(input_shape)
+                model.summary()
 
-        # CNN
-        model.compile(
-            optimizer=tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE, beta_1=0.9, beta_2=0.999, epsilon=1e-07,
-                                               amsgrad=False, name='Adam'),
-            loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-            metrics=['accuracy'],
-        )
+                # Adam's (Neon Genesis Evangelion) model optimization
 
-        history = model.fit(
-            train_ds,
-            validation_data=val_ds,
-            epochs=EPOCHS,
-            callbacks=tf.keras.callbacks.EarlyStopping(verbose=1, patience=5),
-        )
+                # CNN
+                model.compile(
+                    optimizer=tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE, beta_1=0.9, beta_2=0.999, epsilon=1e-07,
+                                                       amsgrad=False, name='Adam'),
+                    loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+                    metrics=['accuracy'],
+                )
 
-        metrics = history.history
-        plt.plot(history.epoch, metrics['loss'], metrics['val_loss'])
-        plt.legend(['loss', 'val_loss'])
-        plt.show()
+                history = model.fit(
+                    train_ds,
+                    validation_data=val_ds,
+                    epochs=EPOCHS,
+                    callbacks=tf.keras.callbacks.EarlyStopping(verbose=1, patience=5),
+                )
 
-        # Evaluating the model performance
-        test_audio = []
-        test_labels = []
+                metrics = history.history
+                plt.plot(history.epoch, metrics['loss'], metrics['val_loss'])
+                plt.legend(['loss', 'val_loss'])
 
-        for audio, label in TEST_dataset:
-            test_audio.append(audio.numpy())
-            test_labels.append(label.numpy())
+                # Save plot as a .png
+                plt.savefig('tr_loss-val_loss_' + str(model_name) + '_' + str(feature) + '_lr' + str(LEARNING_RATE) +
+                            '_ep' + str(EPOCHS) + "_part-" + str(i) + '.png', dpi=300, bbox_inches='tight')
 
-        test_audio = np.array(test_audio)
-        test_labels = np.array(test_labels)
+                plt.show()
 
-        y_pred = np.argmax(model.predict(test_audio), axis=1)
-        y_true = test_labels
+                # Evaluating the model performance
+                test_audio = []
+                test_labels = []
 
-        test_acc = sum(y_pred == y_true) / len(y_true)
-        print(f'Test set accuracy: {test_acc:.0%}')
+                for audio, label in TEST_dataset:
+                    test_audio.append(audio.numpy())
+                    test_labels.append(label.numpy())
 
-        # Confusion matrix
-        confusion_mtx = tf.math.confusion_matrix(y_true, y_pred)
-        plt.figure(figsize=(10, 8))
-        sns.heatmap(confusion_mtx,
-                    xticklabels=labels_types,
-                    yticklabels=labels_types,
-                    annot=True, fmt='g')
-        plt.xlabel('Prediction')
-        plt.ylabel('Label')
+                test_audio = np.array(test_audio)
+                test_labels = np.array(test_labels)
 
-        # Save plot as a .png
-        plt.savefig('confusion.png', dpi=300, bbox_inches='tight')
+                y_pred = np.argmax(model.predict(test_audio), axis=1)
+                y_true = test_labels
 
-        plt.show()
+                test_acc = sum(y_pred == y_true) / len(y_true)
+                print(f'Test set accuracy: {test_acc:.0%}')
 
-        train_acc = history.history['accuracy']
-        train_loss = history.history['loss']
-        val_acc = history.history['val_accuracy']
-        val_loss = history.history['val_loss']
+                # Confusion matrix
+                confusion_mtx = tf.math.confusion_matrix(y_true, y_pred)
+                plt.figure(figsize=(10, 8))
+                sns.heatmap(confusion_mtx,
+                            xticklabels=labels_types,
+                            yticklabels=labels_types,
+                            annot=True, fmt='g')
+                plt.xlabel('Prediction')
+                plt.ylabel('Label')
 
-        single_execution_results = ["CNN_1", "Spectrogram", EPOCHS, LEARNING_RATE, fn.truncate(train_acc[-1],3),
-                                    fn.truncate(train_loss[-1],3), fn.truncate(val_acc[-1],3), fn.truncate(val_loss[-1],3),
-                                    fn.truncate(test_acc,3)]
-        print(single_execution_results)
+                # Save plot as a .png
+                plt.savefig('confusion_' + str(model_name) + '_' + str(feature) + '_lr' + str(LEARNING_RATE) + '_ep' +
+                            str(EPOCHS) + "_part-" + str(i) + '.png', dpi=300, bbox_inches='tight')
 
-        results.append(single_execution_results)
+                plt.show()
+
+                train_acc = history.history['accuracy']
+                train_loss = history.history['loss']
+                val_acc = history.history['val_accuracy']
+                val_loss = history.history['val_loss']
+
+                single_execution_results = ["CNN_1", "Spectrogram", EPOCHS, LEARNING_RATE, fn.truncate(train_acc[-1],3),
+                                            fn.truncate(train_loss[-1],3), fn.truncate(val_acc[-1],3), fn.truncate(val_loss[-1],3),
+                                            fn.truncate(test_acc,3)]
+                print(single_execution_results)
+
+                results.append(single_execution_results)
     return results
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     print(tf.__version__)
 
-    results = Train_Model("ciao", "porcodio")
+    model_name = "CNN_1"
+    feature_name = "Spectrogram"
+
+    results = Train_Model(model_name, feature_name)
     print(results)
 
     header = ['model', 'feature', 'epochs', 'learning_rate', 'train_accuracy',
               'train_loss', 'val_accuracy', 'val_loss', 'test_accuracy']
 
-    with open('results.csv', 'w', encoding='UTF8', newline='') as f:
+    results_filename = "results_" + model_name + "_" + feature_name + ".csv"
+
+    with open(results_filename, 'w', encoding='UTF8', newline='') as f:
         writer = csv.writer(f)
 
         writer = csv.DictWriter(f, fieldnames=header)

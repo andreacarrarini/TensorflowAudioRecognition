@@ -255,6 +255,8 @@ def plot_MFCC_example(mfcc):
     plt.show()
 
 def plot_dataset_examples(dataset, is_RNN):
+    global _label, waveform, spectrogram
+
     rows = 4
     cols = 4
     n = rows * cols
@@ -273,11 +275,11 @@ def plot_dataset_examples(dataset, is_RNN):
 
     plt.show()
 
-    for waveform, label in dataset.take(1):
-        label = label.numpy().decode('utf-8')
+    for waveform, _label in dataset.take(1):
+        _label = _label.numpy().decode('utf-8')
         spectrogram = get_spectrogram(waveform, False)
 
-    print('Label:', label)
+    print('Label:', _label)
     print('Waveform shape:', waveform.shape)
     print('Spectrogram shape:', spectrogram.shape)
 
