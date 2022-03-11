@@ -65,7 +65,7 @@ def prepare_waveform_dataset(files_dataset, csv_list, batch_size):
 
     for file_path in files_dataset:
 
-        if count == batch_size:
+        if count == batch_size or count == len(csv_list):
             break
 
         file_name = get_file_name_from_path(file_path)
@@ -82,7 +82,7 @@ def prepare_waveform_dataset(files_dataset, csv_list, batch_size):
         count += 1
 
         # Removing the file from the file dataset, otherwise we will get the same batch_size elements each time
-        files_dataset.remove(file_path)
+        # files_dataset.remove(file_path)
 
     return waveform_label_dataset, files_dataset
 
