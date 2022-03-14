@@ -289,6 +289,8 @@ def Train_Spectrogram(model_name):
 
     if model_name == "CNN_2":
         loading_batch_size = 256
+    elif model_name == "VGG16":
+        loading_batch_size = 256
 
     # TEST_SET doesn't change in cross validation
     test_set = tf.io.gfile.glob(str(data_dir) + os.path.join(os.sep, 'audio', 'fold5', '*.wav'))
@@ -531,6 +533,7 @@ def Train_Spectrogram(model_name):
                 model = arch.build_ResNet50(num_labels, train_ds, input_shape)
             elif model_name == "VGG16":
                 model = arch.build_VGG16(num_labels, train_ds, input_shape)
+                patience = 2
 
             model.build(input_shape)
             model.summary()
@@ -632,9 +635,9 @@ if __name__ == '__main__':
 
     feature_name = "Spectrogram"
 
-    results = Train_Spectrogram("CNN_1")
-    results = Train_Spectrogram("CNN_2")
-    results = Train_Spectrogram("ResNet_50")
+    # results = Train_Spectrogram("CNN_1")
+    # results = Train_Spectrogram("CNN_2")
+    # results = Train_Spectrogram("ResNet_50")
     results = Train_Spectrogram("VGG16")
     # print(results)
     #
