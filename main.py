@@ -64,10 +64,10 @@ def Train_MFCC(model_name):
     labels_types = fn.get_all_label_types(csv_list)
 
     # loading_batch_size = 256
-    # loading_batch_size = 512
+    loading_batch_size = 512
     # loading_batch_size = 1024
     # loading_batch_size = 2048
-    loading_batch_size = 4096
+    # loading_batch_size = 4096
     # loading_batch_size = 8192
     # loading_batch_size = 99999
 
@@ -167,7 +167,7 @@ def Train_MFCC(model_name):
                 model = arch.build_ResNet50(num_labels, train_ds, input_shape)
             elif model_name == "VGG16":
                 model = arch.build_VGG16(num_labels, train_ds, input_shape)
-                # patience = 2
+                patience = 2
 
             model.build(input_shape)
             model.summary()
@@ -686,9 +686,9 @@ if __name__ == '__main__':
 
     feature_name = "MFCC"
 
-    results = Train_MFCC("CNN_1")
-    results = Train_MFCC("CNN_2")
-    results = Train_MFCC("ResNet_50")
+    # results = Train_MFCC("CNN_1")
+    # results = Train_MFCC("CNN_2")
+    # results = Train_MFCC("ResNet_50")
     results = Train_MFCC("VGG16")
     print(results)
 
